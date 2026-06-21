@@ -1,94 +1,120 @@
 const express = require('express');
-const router = express.Router();
+const axios = require('axios');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const router = express.Router();
 
-// Email 登入
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' 
+const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID;
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://orderai.merchcore.ai';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// LINE 登入重定向端點
+router.get('/line', (req, res ) => {
+  const redirectUri = encodeURIComponent(
+    `${FRONTEND_URL}/api/auth/line/callback`
+  );
+  const state = Math.random().toString(36).substring(7);
+  
+  const lineAuthUrl = 
+    `https://access.line.me/oauth2/v2.1/authorize?` +
+    `response_type=code&` +
+    `client_id=${LINE_CHANNEL_ID}&` +
+    `redirect_uri=${redirectUri}&` +
+    `state=${state}&` +
+    `scope=profile%20openid&` +
+    `prompt=consent`;
+  
+  res.redirect(lineAuthUrl );
 });
-    }
+
+// LINE 登入回調端點
+router.get('/line/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  if (!code) {
+    return res.status(400).json({ error: 'Missing authorization code' });
+  }
+  
+  try {
+    const tokenResponse = await axios.post(
+      'https://api.line.me/oauth2/v2.1/token',
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: `${FRONTEND_URL}/api/auth/line/callback`,
+        client_id: LINE_CHANNEL_ID,
+        client_secret: LINE_CHANNEL_SECRET,
+      } ).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      }
+    );
     
-    // 臨時實現 - 實際應查詢資料庫
-    const token = jwt.sign(
-      { email, id: 1 },
-      process.env.JWT_SECRET || 'secret',
+    const { access_token, id_token } = tokenResponse.data;
+    
+    const userResponse = await axios.get(
+      'https://api.line.me/v2/profile',
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      }
+     );
+    
+    const { userId, displayName, pictureUrl, statusMessage } = userResponse.data;
+    
+    const jwtToken = jwt.sign(
+      {
+        userId,
+        displayName,
+        pictureUrl,
+        statusMessage,
+        provider: 'line',
+        lineUserId: userId,
+      },
+      JWT_SECRET,
       { expiresIn: '7d' }
     );
     
-    res.json({ token, user: { email } });
+    const frontendCallbackUrl = new URL(`${FRONTEND_URL}/auth/callback`);
+    frontendCallbackUrl.searchParams.append('token', jwtToken);
+    frontendCallbackUrl.searchParams.append('provider', 'line');
+    frontendCallbackUrl.searchParams.append('displayName', displayName);
+    
+    res.redirect(frontendCallbackUrl.toString());
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('LINE OAuth error:', error.response?.data || error.message);
+    res.status(500).json({ 
+      error: 'Authentication failed',
+      details: error.message 
+    });
   }
 });
 
-// Email 註冊
-router.post('/register', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' 
-});
-    }
-    
-    res.json({ message: 'User registered successfully', email });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+router.get('/google', (req, res) => {
+  res.json({ message: 'Google login coming soon' });
 });
 
-// LINE OAuth 回調
-router.get('/line/callback', async (req, res) => {
-  try {
-    const { code } = req.query;
-    
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' 
-});
-    }
-    
-    res.json({ message: 'LINE login successful' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+router.get('/google/callback', (req, res) => {
+  res.json({ message: 'Google callback coming soon' });
 });
 
-// Google OAuth 回調
-router.get('/google/callback', async (req, res) => {
-  try {
-    const { code } = req.query;
-    
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' 
-});
-    }
-    
-    res.json({ message: 'Google login successful' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+router.get('/apple', (req, res) => {
+  res.json({ message: 'Apple login coming soon' });
 });
 
-// Apple OAuth 回調
-router.post('/apple/callback', async (req, res) => {
-  try {
-    const { code } = req.body;
-    
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' 
+router.post('/apple/callback', (req, res) => {
+  res.json({ message: 'Apple callback coming soon' });
 });
-    }
-    
-    res.json({ message: 'Apple login successful' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+
+router.post('/email', (req, res) => {
+  res.json({ message: 'Email login coming soon' });
+});
+
+router.post('/email/register', (req, res) => {
+  res.json({ message: 'Email registration coming soon' });
 });
 
 module.exports = router;
-
