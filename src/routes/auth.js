@@ -78,7 +78,8 @@ router.get('/line/callback', async (req, res) => {
       { expiresIn: '7d' }
     );
     
-    const frontendCallbackUrl = new URL(`${FRONTEND_URL}/auth/callback`);
+    const frontendCallbackUrl = new 
+URL(`${FRONTEND_URL}/api/auth/line/callback`);
     frontendCallbackUrl.searchParams.append('token', jwtToken);
     frontendCallbackUrl.searchParams.append('provider', 'line');
     frontendCallbackUrl.searchParams.append('displayName', displayName);
