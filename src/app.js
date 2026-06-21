@@ -9,10 +9,10 @@ app.use(cors());
 app.use(express.json());
 
 // 路由 - 改為 /v1 前綴
-app.use('/v1/auth', require('./routes/auth'));
-app.use('/v1/user', require('./routes/user'));
-app.use('/v1/billing', require('./routes/billing'));
-app.use('/v1/preferences', require('./routes/preferences'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/user', require('./routes/user'));
+app.use('/api/billing', require('./routes/billing'));
+app.use('/api/preferences', require('./routes/preferences'));
 
 // 健康檢查
 app.get('/health', (req, res) => {
