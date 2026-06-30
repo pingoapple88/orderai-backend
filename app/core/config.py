@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # LINE OAuth（律一：透過 Adapter，不在他處硬編碼）
     line_channel_id: str = ""
     line_channel_secret: str = ""
+    line_channel_access_token: str = ""  # PR-3：回覆訊息用
 
     # LLM Provider（集團守則：AI 服務可替換）
     llm_provider: str = "openai"

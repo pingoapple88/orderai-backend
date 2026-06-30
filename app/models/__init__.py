@@ -35,6 +35,8 @@ class Tenant(Base):
     market: Mapped[str] = mapped_column(String(10), default="tw")  # tw/jp/th/us
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+    # PR-3：產業類型，控制 LLM Prompt 切換（ecom/beauty/food）
+    industry_type: Mapped[str] = mapped_column(String(20), default="ecom")
 
 
 class Plan(Base):
