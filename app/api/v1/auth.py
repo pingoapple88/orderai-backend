@@ -1,3 +1,4 @@
+from typing import Optional
 """LINE OAuth + JWT（PR-2）。JWT 帶 user_id / tenant_id / role。"""
 import secrets
 

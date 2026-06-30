@@ -1,5 +1,6 @@
 """ILLMProvider 的 OpenAI 相容實作（集團守則：AI 服務可替換）。
 
+from typing import Optional
 PR-1 僅提供骨架；完整解析與 fail-closed 在 PR-3 實作。
 不綁任何廠商 SDK，使用 httpx 呼叫相容端點（可指向自架 Ollama）。
 """

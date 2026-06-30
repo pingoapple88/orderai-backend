@@ -1,3 +1,4 @@
+from typing import Optional
 """訂單服務（律三：tenant_id + user_id 雙重隔離；律四：audit）。"""
 from datetime import datetime, timezone
 

@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
+from typing import Optional
 @dataclass
 class AuthProfile:
     """各 provider 統一回傳的使用者輪廓。"""

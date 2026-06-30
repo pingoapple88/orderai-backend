@@ -1,3 +1,4 @@
+from typing import Optional
 """訂單 API（PR-2）。所有操作經 order_service，帶 tenant_id + user_id 隔離。"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session

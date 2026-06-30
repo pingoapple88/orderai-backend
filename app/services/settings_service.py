@@ -1,5 +1,6 @@
 """system_settings 讀取（PR-2：參數禁止寫死）。
 
+from typing import Optional
 正式可在前面加 Redis 快取；此處提供 DB 讀取 + 安全預設 fallback。
 """
 from sqlalchemy import select
