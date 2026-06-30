@@ -15,9 +15,9 @@ def get_auth_provider() -> IAuthProvider:
 
 
 def get_llm_provider() -> ILLMProvider:
-    match settings.llm_provider.lower():
-        case _:
-            return OpenAILLMProvider()
+    # 依 LLM_PROVIDER 設定回傳對應 Adapter（Python 3.9 相容）
+    # Phase 2 可擴充 claude / ollama 分支
+    return OpenAILLMProvider()
 
 
 def get_payment_provider() -> IPaymentProvider:

@@ -23,7 +23,7 @@ def line_login():
 
 
 @router.get("/line/callback")
-async def line_callback(code: str | None = None, db: Session = Depends(get_db)):
+async def line_callback(code: Optional[str] = None, db: Session = Depends(get_db)):
     if not code:
         raise HTTPException(400, "Missing authorization code")
     profile = await get_auth_provider().exchange_code(code)

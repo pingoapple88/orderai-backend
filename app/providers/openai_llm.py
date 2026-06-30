@@ -21,7 +21,7 @@ _PROMPT = (
 
 
 class OpenAILLMProvider(ILLMProvider):
-    async def extract_order(self, *, image_url: str | None = None, text: str | None = None) -> ExtractionResult:
+    async def extract_order(self, *, image_url: Optional[str] = None, text: Optional[str] = None) -> ExtractionResult:
         if not settings.llm_api_key:
             raise RuntimeError("LLM_API_KEY not configured")
 

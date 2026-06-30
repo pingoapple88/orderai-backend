@@ -13,7 +13,7 @@ class PaymentRequest:
     order_id: int
     amount: int          # 整數分位
     currency: str        # TWD / JPY / THB / USD
-    description: str | None = None
+    description: Optional[str] = None
 
 
 @dataclass
@@ -21,7 +21,7 @@ class PaymentResult:
     provider: str
     reference: str       # StallPay 交易參照
     status: str          # pending / paid / failed
-    redirect_url: str | None = None
+    redirect_url: Optional[str] = None
 
 
 class IPaymentProvider(ABC):

@@ -9,7 +9,7 @@ from app.models import AuditLog, Order, OrderItem
 from app.services.tax import compute_tax
 
 
-def _audit(db: Session, principal: dict, action: str, resource_id: int | None,
+def _audit(db: Session, principal: dict, action: str, resource_id: Optional[int],
            old=None, new=None) -> None:
     db.add(AuditLog(
         user_id=principal.get("user_id"),
@@ -74,7 +74,7 @@ def list_orders(db: Session, principal: dict, *, page=1, limit=20, status=None):
     return rows, total
 
 
-def get_order(db: Session, principal: dict, order_id: int) -> Order | None:
+def get_order(db: Session, principal: dict, order_id: int) -> Optional[Order]:
     return db.execute(
         select(Order).where(
             Order.id == order_id,
@@ -85,7 +85,7 @@ def get_order(db: Session, principal: dict, order_id: int) -> Order | None:
     ).scalar_one_or_none()
 
 
-def update_order(db: Session, principal: dict, order_id: int, updates: dict) -> Order | None:
+def update_order(db: Session, principal: dict, order_id: int, updates: dict) -> Optional[Order]:
     order = get_order(db, principal, order_id)
     if not order:
         return None

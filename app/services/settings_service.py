@@ -15,7 +15,7 @@ _FALLBACK = {
 }
 
 
-def get_setting(db: Session, key: str, default: str | None = None) -> str | None:
+def get_setting(db: Session, key: str, default: Optional[str] = None) -> Optional[str]:
     row = db.get(SystemSetting, key)
     if row and row.value is not None:
         return row.value

@@ -1,3 +1,4 @@
+from typing import Optional
 """SQLAlchemy ORM 模型 — 對應 schema.sql 的 10 張表（PR-1b）。
 
 PR-1b 變更：
@@ -30,7 +31,7 @@ from app.core.database import Base
 class Tenant(Base):
     __tablename__ = "tenants"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str | None] = mapped_column(String(255))
+    name: Mapped[Optional[str]] = mapped_column(String(255))
     market: Mapped[str] = mapped_column(String(10), default="tw")  # tw/jp/th/us
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
@@ -42,9 +43,9 @@ class Plan(Base):
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     monthly_price: Mapped[int] = mapped_column(Integer, nullable=False)  # 整數分位
     currency: Mapped[str] = mapped_column(String(3), default="TWD")
-    ai_extraction_limit: Mapped[int | None] = mapped_column(Integer)
-    team_member_limit: Mapped[int | None] = mapped_column(Integer)
-    features: Mapped[dict | None] = mapped_column(JSONB)
+    ai_extraction_limit: Mapped[Optional[int]] = mapped_column(Integer)
+    team_member_limit: Mapped[Optional[int]] = mapped_column(Integer)
+    features: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
@@ -52,20 +53,20 @@ class Plan(Base):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str | None] = mapped_column(String(255), unique=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
     line_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    name: Mapped[str | None] = mapped_column(String(255))
-    avatar_url: Mapped[str | None] = mapped_column(Text)
-    phone: Mapped[str | None] = mapped_column(String(20))
+    name: Mapped[Optional[str]] = mapped_column(String(255))
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text)
+    phone: Mapped[Optional[str]] = mapped_column(String(20))
     plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("plans.id"), nullable=False)
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
     role: Mapped[str] = mapped_column(String(50), default="admin")                    # PR-1b
     ai_usage_count: Mapped[int] = mapped_column(Integer, default=0)
-    ai_usage_reset_date: Mapped[date | None] = mapped_column(Date)
+    ai_usage_reset_date: Mapped[Optional[date]] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
 
 class UserPreference(Base):
@@ -74,7 +75,7 @@ class UserPreference(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
     language: Mapped[str] = mapped_column(String(10), default="zh-TW")
     theme: Mapped[str] = mapped_column(String(10), default="light")
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -90,18 +91,18 @@ class Order(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
-    order_number: Mapped[str | None] = mapped_column(String(255), unique=True)
-    customer_name: Mapped[str | None] = mapped_column(String(255))
-    customer_phone: Mapped[str | None] = mapped_column(String(20))
-    customer_email: Mapped[str | None] = mapped_column(String(255))
-    total_amount: Mapped[int | None] = mapped_column(Integer)  # 整數分位
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    order_number: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+    customer_name: Mapped[Optional[str]] = mapped_column(String(255))
+    customer_phone: Mapped[Optional[str]] = mapped_column(String(20))
+    customer_email: Mapped[Optional[str]] = mapped_column(String(255))
+    total_amount: Mapped[Optional[int]] = mapped_column(Integer)  # 整數分位
     currency: Mapped[str] = mapped_column(String(3), default="TWD")
     status: Mapped[str] = mapped_column(String(50), default="pending")
-    channel: Mapped[str | None] = mapped_column(String(50))
-    source_image_url: Mapped[str | None] = mapped_column(Text)
-    ai_extraction_id: Mapped[int | None] = mapped_column(Integer)
-    notes: Mapped[str | None] = mapped_column(Text)
+    channel: Mapped[Optional[str]] = mapped_column(String(50))
+    source_image_url: Mapped[Optional[str]] = mapped_column(Text)
+    ai_extraction_id: Mapped[Optional[int]] = mapped_column(Integer)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
@@ -116,10 +117,10 @@ class OrderItem(Base):
     order_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
     )
-    product_name: Mapped[str | None] = mapped_column(String(255))
-    quantity: Mapped[int | None] = mapped_column(Integer)
-    unit_price: Mapped[int | None] = mapped_column(Integer)  # 整數分位
-    subtotal: Mapped[int | None] = mapped_column(Integer)    # 整數分位
+    product_name: Mapped[Optional[str]] = mapped_column(String(255))
+    quantity: Mapped[Optional[int]] = mapped_column(Integer)
+    unit_price: Mapped[Optional[int]] = mapped_column(Integer)  # 整數分位
+    subtotal: Mapped[Optional[int]] = mapped_column(Integer)    # 整數分位
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
     order: Mapped["Order"] = relationship(back_populates="items")
@@ -131,15 +132,15 @@ class BillingRecord(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
-    order_id: Mapped[int | None] = mapped_column(
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    order_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("orders.id", ondelete="SET NULL")
     )
-    amount: Mapped[int | None] = mapped_column(Integer)  # 整數分位
+    amount: Mapped[Optional[int]] = mapped_column(Integer)  # 整數分位
     currency: Mapped[str] = mapped_column(String(3), default="TWD")
     status: Mapped[str] = mapped_column(String(50), default="pending")
-    payment_method: Mapped[str | None] = mapped_column(String(50))
-    description: Mapped[str | None] = mapped_column(Text)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(50))
+    description: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
@@ -150,11 +151,11 @@ class AIExtraction(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
-    image_url: Mapped[str | None] = mapped_column(Text)
-    extraction_result: Mapped[dict | None] = mapped_column(JSONB)
-    confidence_score: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))  # 機率值
-    llm_provider: Mapped[str | None] = mapped_column(String(50))
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
+    extraction_result: Mapped[Optional[dict]] = mapped_column(JSONB)
+    confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(3, 2))  # 機率值
+    llm_provider: Mapped[Optional[str]] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(50), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
@@ -166,9 +167,9 @@ class AIUsageLog(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
-    extraction_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("ai_extractions.id"))
-    usage_date: Mapped[date | None] = mapped_column(Date)
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    extraction_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("ai_extractions.id"))
+    usage_date: Mapped[Optional[date]] = mapped_column(Date)
     usage_count: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
@@ -176,17 +177,17 @@ class AIUsageLog(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int | None] = mapped_column(
+    user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
-    action: Mapped[str | None] = mapped_column(String(255))
-    resource_type: Mapped[str | None] = mapped_column(String(50))
-    resource_id: Mapped[int | None] = mapped_column(Integer)
-    old_value: Mapped[dict | None] = mapped_column(JSONB)
-    new_value: Mapped[dict | None] = mapped_column(JSONB)
-    ip_address: Mapped[str | None] = mapped_column(String(45))
-    user_agent: Mapped[str | None] = mapped_column(Text)
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id"))  # PR-1b
+    action: Mapped[Optional[str]] = mapped_column(String(255))
+    resource_type: Mapped[Optional[str]] = mapped_column(String(50))
+    resource_id: Mapped[Optional[int]] = mapped_column(Integer)
+    old_value: Mapped[Optional[dict]] = mapped_column(JSONB)
+    new_value: Mapped[Optional[dict]] = mapped_column(JSONB)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
+    user_agent: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
@@ -194,8 +195,8 @@ class SystemSetting(Base):
     """PR-2：全域可調參數（禁止寫死於程式）。"""
     __tablename__ = "system_settings"
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
-    value: Mapped[str | None] = mapped_column(Text)
-    description: Mapped[str | None] = mapped_column(Text)
+    value: Mapped[Optional[str]] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 

@@ -21,7 +21,7 @@ def create_order(body: dict, principal: dict = Depends(get_current_principal),
 
 
 @router.get("")
-def list_orders(page: int = 1, limit: int = 20, status: str | None = None,
+def list_orders(page: int = 1, limit: int = 20, status: Optional[str] = None,
                 principal: dict = Depends(get_current_principal), db: Session = Depends(get_db)):
     rows, total = order_service.list_orders(db, principal, page=page, limit=limit, status=status)
     return {"orders": [{"id": r.id, "order_number": r.order_number, "status": r.status,

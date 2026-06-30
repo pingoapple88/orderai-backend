@@ -8,9 +8,9 @@ class AuthProfile:
     """各 provider 統一回傳的使用者輪廓。"""
     provider: str
     external_id: str          # 例如 LINE userId 字串
-    display_name: str | None = None
-    avatar_url: str | None = None
-    email: str | None = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    email: Optional[str] = None
 
 
 class IAuthProvider(ABC):
