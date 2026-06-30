@@ -1,10 +1,10 @@
 """ILLMProvider 的 OpenAI 相容實作（集團守則：AI 服務可替換）。
 
-from typing import Optional
 PR-1 僅提供骨架；完整解析與 fail-closed 在 PR-3 實作。
 不綁任何廠商 SDK，使用 httpx 呼叫相容端點（可指向自架 Ollama）。
 """
 import json
+from typing import List, Optional
 
 import httpx
 
@@ -26,7 +26,7 @@ class OpenAILLMProvider(ILLMProvider):
         if not settings.llm_api_key:
             raise RuntimeError("LLM_API_KEY not configured")
 
-        content: list[dict] = [{"type": "text", "text": text or "Extract the order from this image."}]
+        content: List[dict] = [{"type": "text", "text": text or "Extract the order from this image."}]
         if image_url:
             content.append({"type": "image_url", "image_url": {"url": image_url}})
 
