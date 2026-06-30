@@ -2,6 +2,7 @@
 from app.core.config import get_settings
 from app.core.interfaces.auth_provider import IAuthProvider
 from app.core.interfaces.llm_provider import ILLMProvider
+from app.core.interfaces.notification_provider import INotificationProvider
 from app.core.interfaces.payment_provider import IPaymentProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.openai_llm import OpenAILLMProvider
@@ -15,9 +16,15 @@ def get_auth_provider() -> IAuthProvider:
 
 
 def get_llm_provider() -> ILLMProvider:
-    # 依 LLM_PROVIDER 設定回傳對應 Adapter（Python 3.9 相容）
-    # Phase 2 可擴充 claude / ollama 分支
+    # 3.9-safe：以 if/elif 取代 match
+    # if settings.llm_provider.lower() == "claude": return ClaudeLLMProvider()
+    # if settings.llm_provider.lower() == "ollama": return OllamaLLMProvider()
     return OpenAILLMProvider()
+
+
+def get_notification_provider() -> INotificationProvider:
+    """回覆/推播訊息提供者（目前 LINE）。"""
+    return LineAuthProvider()
 
 
 def get_payment_provider() -> IPaymentProvider:
