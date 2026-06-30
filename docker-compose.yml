@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orderai
+      POSTGRES_PASSWORD: orderai
+      POSTGRES_DB: orderai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql+psycopg2://orderai:orderai@db:5432/orderai
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: change-me-in-prod
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: .
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql+psycopg2://orderai:orderai@db:5432/orderai
+      REDIS_URL: redis://redis:6379/0
+    command: python -m app.worker
+
+  scheduler:
+    build: .
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql+psycopg2://orderai:orderai@db:5432/orderai
+      REDIS_URL: redis://redis:6379/0
+    # 情境四：付款輪詢對賬（簡易迴圈；正式可換 APScheduler/cron）
+    command: python -m app.scheduler
+
+volumes:
+  pgdata:
