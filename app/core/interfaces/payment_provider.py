@@ -1,11 +1,11 @@
 """IPaymentProvider（集團守則：OrderAI 不直接處理金流，委派 StallPay）。
 
-from typing import Optional
 PR-1b 僅定義介面；具體 StallPay 實作於 PR-2 補完。
 金額一律以整數分位（最小幣別單位）傳遞。
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
