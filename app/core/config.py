@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     # AI 自動化（律八：信心閾值、fail-closed）
     ai_confidence_threshold: float = 0.7
 
+    # PR-2：非同步佇列（情境一防禦）
+    redis_url: str = "redis://localhost:6379/0"
+    queue_backend: str = "redis"          # redis | memory（測試/開發）
+    queue_name: str = "line_webhook"
+
+    # PR-2：StallPay 金流橋接（情境四）
+    stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
+    stallpay_api_key: str = ""
+
+    # i18n
+    default_lang: str = "zh-TW"
+
 
 @lru_cache
 def get_settings() -> "Settings":

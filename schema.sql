@@ -200,3 +200,28 @@ VALUES
   ('lite', 39000, 'TWD', 300, 1, '{"ai_extraction": true, "basic_reporting": true}'),
   ('pro', 79000, 'TWD', -1, -1, '{"ai_extraction": true, "advanced_reporting": true, "team_collaboration": true}')
 ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================================
+-- PR-2 追加：system_settings（全域可調參數，禁止寫死）
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS system_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value TEXT,
+  description TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO system_settings (key, value, description) VALUES
+  ('ai_soft_limit_pro', '10000', 'Pro 方案每月 AI 解析軟上限'),
+  ('pre_filter_regex', '(\+\s*\d+|＋\s*\d+|#下單|要買|預購|下單|訂購|\d+\s*份|\d+\s*個|\d+\s*組)', '接單意圖預檢正則；不符者略過 LLM'),
+  ('polling_interval_minutes', '30', '付款未回調主動輪詢間隔（分）')
+ON CONFLICT (key) DO NOTHING;
+
+-- PR-2 追加：以 tenant_id 為首的複合索引（20 萬租戶查詢效能）
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_user ON orders(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_status ON orders(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_billing_tenant_status ON billing_records(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_ai_extractions_tenant_status ON ai_extractions(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_tenant_date ON ai_usage_logs(tenant_id, usage_date);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant_created ON audit_logs(tenant_id, created_at);

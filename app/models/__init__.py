@@ -190,7 +190,16 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
+class SystemSetting(Base):
+    """PR-2：全域可調參數（禁止寫死於程式）。"""
+    __tablename__ = "system_settings"
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+
+
 __all__ = [
     "Tenant", "Plan", "User", "UserPreference", "Order", "OrderItem",
-    "BillingRecord", "AIExtraction", "AIUsageLog", "AuditLog",
+    "BillingRecord", "AIExtraction", "AIUsageLog", "AuditLog", "SystemSetting",
 ]
