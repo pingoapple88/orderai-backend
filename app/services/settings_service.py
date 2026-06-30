@@ -7,7 +7,15 @@ from app.models import SystemSetting
 
 
 def get_setting(db: Session, key: str, default: Optional[str] = None) -> Optional[str]:
-    row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    # 支援 SQLAlchemy Session（db.get）與測試 stub（db.get）兩種模式
+    try:
+        row = db.get(SystemSetting, key)
+    except Exception:
+        # fallback: 若 db 不支援 get()，改用 query()
+        try:
+            row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+        except Exception:
+            return default
     return row.value if row else default
 
 
