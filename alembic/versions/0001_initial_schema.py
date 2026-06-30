@@ -15,7 +15,7 @@ depends_on = None
 
 _TABLES = [
     "audit_logs", "ai_usage_logs", "ai_extractions", "billing_records",
-    "order_items", "orders", "user_preferences", "users", "plans",
+    "order_items", "orders", "user_preferences", "users", "plans", "tenants",
 ]
 
 

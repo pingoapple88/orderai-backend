@@ -2,20 +2,24 @@
 from app.core.config import get_settings
 from app.core.interfaces.auth_provider import IAuthProvider
 from app.core.interfaces.llm_provider import ILLMProvider
+from app.core.interfaces.payment_provider import IPaymentProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.openai_llm import OpenAILLMProvider
+from app.providers.stallpay import StallPayProvider
 
 settings = get_settings()
 
 
 def get_auth_provider() -> IAuthProvider:
-    # 目前僅 LINE；未來可依 provider 名稱切換
     return LineAuthProvider()
 
 
 def get_llm_provider() -> ILLMProvider:
     match settings.llm_provider.lower():
-        # case "claude": return ClaudeLLMProvider()
-        # case "ollama": return OllamaLLMProvider()
         case _:
             return OpenAILLMProvider()
+
+
+def get_payment_provider() -> IPaymentProvider:
+    # OrderAI 不自處理金流，一律委派 StallPay
+    return StallPayProvider()
