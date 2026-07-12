@@ -1,7 +1,9 @@
 """IAuthProvider + INotificationProvider 的 LINE 實作（律一：外部認證透過 Adapter）。
 
-PR-3：LineAuthProvider 同時實作 INotificationProvider（send_message），
-      發訊與認證分離（INotificationProvider 獨立介面），LINE 同時實作兩者。
+Task 4：兩支 channel 完全分離 —
+  - OAuth（authorize / token 交換）用 LINE **Login** channel（line_login_*）
+  - 推播 / reply 用 LINE **Messaging** channel（line_messaging_access_token）
+混用會導致「每則訊息 401、錯誤訊息誤導」，故變數層嚴格分離。
 """
 from __future__ import annotations
 
@@ -27,8 +29,8 @@ class LineAuthProvider(IAuthProvider, INotificationProvider):
     def get_authorize_url(self, state: str) -> str:
         params = {
             "response_type": "code",
-            "client_id": settings.line_channel_id,
-            "redirect_uri": "{}/api/auth/line/callback".format(settings.frontend_url),
+            "client_id": settings.line_login_channel_id,
+            "redirect_uri": settings.line_login_callback_url,
             "state": state,
             "scope": "profile openid",
         }
@@ -41,9 +43,9 @@ class LineAuthProvider(IAuthProvider, INotificationProvider):
                 data={
                     "grant_type": "authorization_code",
                     "code": code,
-                    "redirect_uri": "{}/api/auth/line/callback".format(settings.frontend_url),
-                    "client_id": settings.line_channel_id,
-                    "client_secret": settings.line_channel_secret,
+                    "redirect_uri": settings.line_login_callback_url,
+                    "client_id": settings.line_login_channel_id,
+                    "client_secret": settings.line_login_channel_secret,
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
@@ -64,12 +66,12 @@ class LineAuthProvider(IAuthProvider, INotificationProvider):
     async def send_message(
         self, *, to: str, text: str, reply_token: Optional[str] = None
     ) -> None:
-        """回覆或推播訊息。有 reply_token 時用 reply API（免費），否則用 push API。"""
-        if not settings.line_channel_access_token:
-            raise RuntimeError("LINE_CHANNEL_ACCESS_TOKEN not configured")
+        """回覆或推播訊息（用 Messaging channel access token）。"""
+        if not settings.line_messaging_access_token:
+            raise RuntimeError("LINE_MESSAGING_ACCESS_TOKEN not configured")
 
         headers = {
-            "Authorization": "Bearer {}".format(settings.line_channel_access_token),
+            "Authorization": "Bearer {}".format(settings.line_messaging_access_token),
             "Content-Type": "application/json",
         }
         messages = [{"type": "text", "text": text}]

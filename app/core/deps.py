@@ -1,4 +1,4 @@
-"""FastAPI 依賴：JWT 解析、目前使用者、角色守衛（律三）。"""
+"""FastAPI 依賴：JWT 解析、目前 principal、角色守衛、租戶（store）隔離（律三）。"""
 import jwt
 from fastapi import Depends, Header, HTTPException, status
 
@@ -13,10 +13,19 @@ def get_current_principal(authorization: str = Header(default="")) -> dict:
         payload = decode_access_token(token)
     except jwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-    # 需含整數 user_id 與 tenant_id（PR-1b/PR-2）
+    # JWT 必含 user_id 與 store_id（0004 起租戶鍵為 store）
     if "user_id" not in payload:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Malformed token")
     return payload
+
+
+def verify_store_access(
+    store_id: int, principal: dict = Depends(get_current_principal)
+) -> dict:
+    """路由帶 {store_id} 者必掛此依賴：JWT 的 store_id 必須等於 path store_id，否則 403。"""
+    if principal.get("store_id") != store_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Access denied")
+    return principal
 
 
 def require_role(*roles: str):
