@@ -22,7 +22,7 @@ async def line_webhook(request: Request) -> Response:
     body = await request.body()
     signature = request.headers.get("X-Line-Signature", "")
 
-    if not verify_line_signature(body, signature, settings.line_channel_secret):
+    if not verify_line_signature(body, signature, settings.line_messaging_channel_secret):
         return Response(status_code=401)
 
     # 簽章通過才入列 → Worker 非同步消化（避免 LINE 5 秒逾時重試雪崩）

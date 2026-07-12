@@ -52,7 +52,7 @@ def client_with_queue(monkeypatch):
     """注入記憶體佇列 + 固定 channel_secret。"""
     from app.core import config as cfg_module
 
-    monkeypatch.setattr(cfg_module.get_settings(), "line_channel_secret", "test-secret")
+    monkeypatch.setattr(cfg_module.get_settings(), "line_messaging_channel_secret", "test-secret")
 
     q = InMemoryQueue()
     providers.set_queue(q)
@@ -66,7 +66,7 @@ def test_valid_signature_enqueues_and_returns_200(client_with_queue):
     body = json.dumps({"events": [{"type": "message"}]}).encode()
     sig = _make_signature(body, "test-secret")
     resp = client.post(
-        "/api/webhook/line",
+        "/api/v1/webhooks/line",
         content=body,
         headers={"X-Line-Signature": sig, "Content-Type": "application/json"},
     )
@@ -78,7 +78,7 @@ def test_invalid_signature_returns_401_and_not_enqueued(client_with_queue):
     client, q = client_with_queue
     body = json.dumps({"events": []}).encode()
     resp = client.post(
-        "/api/webhook/line",
+        "/api/v1/webhooks/line",
         content=body,
         headers={"X-Line-Signature": "wrong-sig", "Content-Type": "application/json"},
     )

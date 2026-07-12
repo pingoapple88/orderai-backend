@@ -1,5 +1,9 @@
+"""LINE OAuth + JWT（Task 4）。JWT 帶 user_id / store_id / role。
+
+OAuth 用 LINE **Login** channel（line_login_*）。callback URL 由 settings 提供。
+users.line_id 全域 UNIQUE 保留，scalar_one_or_none() 安全，登入邏輯不改查詢方式。
+"""
 from typing import Optional
-"""LINE OAuth + JWT（PR-2）。JWT 帶 user_id / tenant_id / role。"""
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,15 +13,18 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.deps import get_current_principal
+from app.core.response import success_response
 from app.core.security import create_access_token
-from app.models import Plan, Tenant, User
+from app.models import Plan, Store, User
 from app.providers import get_auth_provider
+from app.schemas import MeOut, MeStoreOut, MeUserOut
 
 router = APIRouter()
 settings = get_settings()
 
 
-@router.get("/line")
+@router.get("/line/login")
 def line_login():
     state = secrets.token_urlsafe(8)
     return {"authorize_url": get_auth_provider().get_authorize_url(state)}
@@ -31,24 +38,52 @@ async def line_callback(code: Optional[str] = None, db: Session = Depends(get_db
 
     user = db.execute(select(User).where(User.line_id == profile.external_id)).scalar_one_or_none()
     if user is None:
-        # 新用戶：建立專屬租戶 + admin 角色 + 預設方案
-        tenant = Tenant(name=profile.display_name or "New Tenant", market="tw")
-        db.add(tenant)
+        # 新用戶：建立專屬 store + owner 角色 + 預設方案
+        store = Store(name=profile.display_name or "New Store", market="tw")
+        db.add(store)
         db.flush()
         default_plan = db.execute(select(Plan).order_by(Plan.monthly_price.asc())).scalars().first()
-        user = User(line_id=profile.external_id, name=profile.display_name,
-                    avatar_url=profile.avatar_url, plan_id=default_plan.id if default_plan else 1,
-                    tenant_id=tenant.id, role="admin")
+        user = User(
+            line_id=profile.external_id,
+            name=profile.display_name,
+            avatar_url=profile.avatar_url,
+            picture_url=profile.avatar_url,
+            plan_id=default_plan.id if default_plan else 1,
+            store_id=store.id,
+            role="owner",
+        )
         db.add(user)
     else:
         user.name = profile.display_name or user.name
         user.avatar_url = profile.avatar_url or user.avatar_url
+        user.picture_url = profile.avatar_url or user.picture_url
     db.commit()
     db.refresh(user)
 
     token = create_access_token({
-        "user_id": user.id, "tenant_id": user.tenant_id,
+        "user_id": user.id, "store_id": user.store_id,
         "role": user.role, "line_user_id": profile.external_id, "provider": "line",
     })
-    url = f"{settings.frontend_url}/api/auth/line/callback?token={token}&provider=line"
+    url = f"{settings.frontend_url}/auth/callback?token={token}&provider=line"
     return RedirectResponse(url)
+
+
+@router.get("/me")
+def me(principal: dict = Depends(get_current_principal), db: Session = Depends(get_db)):
+    user = db.get(User, principal["user_id"])
+    if user is None:
+        raise HTTPException(404, "User not found")
+    store = db.get(Store, user.store_id) if user.store_id else None
+    data = MeOut(
+        user=MeUserOut(
+            id=user.id, name=user.name, role=user.role,
+            picture_url=user.picture_url or user.avatar_url,
+        ),
+        store=MeStoreOut(
+            id=store.id if store else 0,
+            name=store.name if store else None,
+            company_id=store.company_id if store else None,
+            plan=store.plan if store else None,
+        ),
+    ).model_dump(by_alias=True)
+    return success_response(data)

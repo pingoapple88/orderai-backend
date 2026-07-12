@@ -17,7 +17,7 @@ def test_webhook_enqueues_and_returns_200_fast(monkeypatch):
     import base64, hashlib, hmac, json
 
     secret = "test-fast"
-    monkeypatch.setattr(cfg_module.get_settings(), "line_channel_secret", secret)
+    monkeypatch.setattr(cfg_module.get_settings(), "line_messaging_channel_secret", secret)
 
     q = InMemoryQueue()
     providers.set_queue(q)
@@ -30,7 +30,7 @@ def test_webhook_enqueues_and_returns_200_fast(monkeypatch):
 
     t0 = time.perf_counter()
     resp = client.post(
-        "/api/webhook/line",
+        "/api/v1/webhooks/line",
         content=body,
         headers={"X-Line-Signature": sig, "Content-Type": "application/json"},
     )

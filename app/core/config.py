@@ -20,10 +20,15 @@ class Settings(BaseSettings):
     jwt_expire_days: int = 7
     frontend_url: str = "http://localhost:8000"
 
-    # LINE OAuth（律一：透過 Adapter，不在他處硬編碼）
-    line_channel_id: str = ""
-    line_channel_secret: str = ""
-    line_channel_access_token: str = ""  # PR-3：回覆訊息用
+    # ── LINE 兩支 channel 完全分離（Task 4）──────────────────────────────────
+    # Messaging channel：webhook 驗簽（HMAC）+ reply/push
+    line_messaging_channel_id: str = ""
+    line_messaging_channel_secret: str = ""
+    line_messaging_access_token: str = ""
+    # Login channel：OAuth authorize + token 交換
+    line_login_channel_id: str = ""
+    line_login_channel_secret: str = ""
+    line_login_callback_url: str = "http://localhost:8000/api/v1/auth/line/callback"
 
     # LLM Provider（集團守則：AI 服務可替換）
     llm_provider: str = "openai"
