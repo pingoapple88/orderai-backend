@@ -134,6 +134,9 @@ CREATE TABLE IF NOT EXISTS orders (
   channel VARCHAR(50),
   source_image_url TEXT,
   ai_extraction_id INTEGER,
+  customer_id INTEGER REFERENCES customers(id),   -- 0004：下單客戶（AI 抄單建/綁）
+  ai_extraction JSONB,                             -- 0004：AI 解析結果快照
+  confirmed_at TIMESTAMP WITH TIME ZONE,           -- 0004：確認時間
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -151,6 +154,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_name VARCHAR(255),
   quantity INTEGER,
+  unit VARCHAR(20) DEFAULT '個',             -- 0004：單位（個/份/隻…）
   unit_price_cents INTEGER,                  -- 整數分位（改名：unit_price → unit_price_cents）
   subtotal_cents INTEGER,                    -- 整數分位（改名：subtotal → subtotal_cents）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
