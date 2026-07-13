@@ -50,6 +50,11 @@ CREATE TABLE IF NOT EXISTS stores (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
   market VARCHAR(10) DEFAULT 'tw',           -- tw / jp / th / us
+  industry_type VARCHAR(20) DEFAULT 'ecom',  -- 0003：ecom / beauty / food（美業架構預留）
+  company_id INTEGER REFERENCES companies(id),            -- 0004：所屬母公司（可空）
+  referred_by_dealer_id INTEGER REFERENCES dealers(id),   -- 0004：推薦經銷商（可空）
+  plan VARCHAR(50) DEFAULT 'lite',                         -- 0004：方案
+  line_channel_id VARCHAR(64),                            -- 0004：LINE channel（secret 只在 ENV）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -78,6 +83,7 @@ CREATE TABLE IF NOT EXISTS users (
   line_id VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255),
   avatar_url TEXT,
+  picture_url TEXT,                          -- 0004：LINE 頭像（auth.py 建 user 時寫入）
   phone VARCHAR(20),
   plan_id INTEGER NOT NULL REFERENCES plans(id),
   store_id INTEGER REFERENCES stores(id),  -- migration 0004：所屬店家
