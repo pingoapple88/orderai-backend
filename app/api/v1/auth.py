@@ -6,7 +6,7 @@ users.line_id 全域 UNIQUE 保留，scalar_one_or_none() 安全，登入邏輯�
 from typing import Optional
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Cookie, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,14 +26,30 @@ settings = get_settings()
 
 @router.get("/line/login")
 def line_login():
-    state = secrets.token_urlsafe(8)
-    return {"authorize_url": get_auth_provider().get_authorize_url(state)}
+    # 前端直接 window.location.href 開這支端點 → 必須 302 導向，不能回 JSON。
+    # state 存 httponly cookie，callback 比對，補上原本缺席的 CSRF 防護。
+    state = secrets.token_urlsafe(16)
+    url = get_auth_provider().get_authorize_url(state)
+    resp = RedirectResponse(url, status_code=302)
+    resp.set_cookie(
+        "line_oauth_state", state,
+        max_age=600, httponly=True, secure=True, samesite="lax", path="/api/v1/auth",
+    )
+    return resp
 
 
 @router.get("/line/callback")
-async def line_callback(code: Optional[str] = None, db: Session = Depends(get_db)):
+async def line_callback(
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    line_oauth_state: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
     if not code:
         raise HTTPException(400, "Missing authorization code")
+    # CSRF：state 必須存在且與 login 時種下的 cookie 相符（compare_digest 防時序），fail-closed。
+    if not state or not line_oauth_state or not secrets.compare_digest(state, line_oauth_state):
+        raise HTTPException(400, "Invalid state")
     profile = await get_auth_provider().exchange_code(code)
 
     user = db.execute(select(User).where(User.line_id == profile.external_id)).scalar_one_or_none()
@@ -65,7 +81,9 @@ async def line_callback(code: Optional[str] = None, db: Session = Depends(get_db
         "role": user.role, "line_user_id": profile.external_id, "provider": "line",
     })
     url = f"{settings.frontend_url}/auth/callback?token={token}&provider=line"
-    return RedirectResponse(url)
+    resp = RedirectResponse(url)
+    resp.delete_cookie("line_oauth_state", path="/api/v1/auth")
+    return resp
 
 
 @router.get("/me")
