@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -23,6 +24,17 @@ logging.basicConfig(
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
+
+# CORS：前端(正式 app)跨來源打 /api/v1/*，需放行來源 + Authorization header(Bearer)。
+# 只放行正式 app 網域；不放行 pages.dev / LP。用 Bearer token(非 cookie)，故不開 credentials，
+# 也就不觸犯「allow_origins=['*'] + allow_credentials=True」的錯誤組合。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://app.orderai.merchcore.ai"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 _STATUS_CODE = {
     400: "BAD_REQUEST", 401: "UNAUTHORIZED", 403: "FORBIDDEN",
