@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS dealers (
   id SERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
+  code VARCHAR(255) UNIQUE,  -- 推薦碼（model 有；非破壞 ADD，既有列先留 NULL）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -38,6 +39,8 @@ CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
   dealer_id INTEGER NOT NULL REFERENCES dealers(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
+  store_id INTEGER,     -- model 有（FK→stores）；stores 在本檔後段建，故此處不加 REFERENCES 避免前向依賴
+  line_user_id TEXT,    -- model 有；LINE 下單客戶綁定（WO-002）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -134,6 +137,9 @@ CREATE TABLE IF NOT EXISTS orders (
   channel VARCHAR(50),
   source_image_url TEXT,
   ai_extraction_id INTEGER,
+  customer_id INTEGER REFERENCES customers(id),   -- 0004：下單客戶（AI 抄單建/綁）
+  ai_extraction JSONB,                             -- 0004：AI 解析結果快照
+  confirmed_at TIMESTAMP WITH TIME ZONE,           -- 0004：確認時間
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -151,6 +157,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_name VARCHAR(255),
   quantity INTEGER,
+  unit VARCHAR(20) DEFAULT '個',             -- 0004：單位（個/份/隻…）
   unit_price_cents INTEGER,                  -- 整數分位（改名：unit_price → unit_price_cents）
   subtotal_cents INTEGER,                    -- 整數分位（改名：subtotal → subtotal_cents）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

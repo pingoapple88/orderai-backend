@@ -35,7 +35,7 @@ async def reconcile_pending_payments(db) -> int:
         if result.status != rec.status:
             old = rec.status
             rec.status = result.status
-            db.add(AuditLog(user_id=rec.user_id, tenant_id=rec.tenant_id,
+            db.add(AuditLog(user_id=rec.user_id, store_id=rec.store_id,
                             action="payment.reconcile", resource_type="billing_record",
                             resource_id=rec.id, old_value={"status": old},
                             new_value={"status": result.status}))

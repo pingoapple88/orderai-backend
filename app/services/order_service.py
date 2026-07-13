@@ -17,10 +17,10 @@ ORDER_STATUSES = {
 
 def _audit(db: Session, principal: dict, action: str, resource_id: Optional[int],
            old=None, new=None) -> None:
-    # audit_logs 欄名保留 tenant_id，寫入的是 store id。
+    # audit_logs 已對齊 store_id（0004 全面改名）。
     db.add(AuditLog(
         user_id=principal.get("user_id"),
-        tenant_id=principal.get("store_id"),
+        store_id=principal.get("store_id"),
         action=action, resource_type="order", resource_id=resource_id,
         old_value=old, new_value=new,
     ))
