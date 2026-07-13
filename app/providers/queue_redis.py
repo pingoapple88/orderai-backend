@@ -17,8 +17,10 @@ class RedisQueue(IQueue):
         self._q = Queue(settings.queue_name, connection=self._conn)
 
     def enqueue(self, payload: dict[str, Any]) -> None:
-        # 將處理函式字串路徑交給 Worker，避免在 web 進程做重活
-        self._q.enqueue("app.worker.process_webhook_event", payload)
+        # 將處理函式字串路徑交給 Worker，避免在 web 進程做重活。
+        # ⚠️ 必須指向 sync 入口 run_worker：RQ 是同步 fork，不 await 協程；
+        #    直接指向 async process_webhook_event 會被當普通函式呼叫、回傳未 await 的 coroutine（靜默 no-op）。
+        self._q.enqueue("app.workers.line_worker.run_worker", payload)
 
     def depth(self) -> int:
         return len(self._q)

@@ -144,6 +144,7 @@ class Order(Base):
     ai_extraction_id: Mapped[Optional[int]] = mapped_column(Integer)
     ai_extraction: Mapped[Optional[dict]] = mapped_column(JSONB)  # 0004 新增
     confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # 0004 新增
+    line_event_id: Mapped[Optional[str]] = mapped_column(Text, unique=True)  # WO-002 去重：LINE webhookEventId
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())

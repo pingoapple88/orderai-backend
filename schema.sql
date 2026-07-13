@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_dealers_company_id ON dealers(company_id);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
-  dealer_id INTEGER NOT NULL REFERENCES dealers(id) ON DELETE CASCADE,
+  dealer_id INTEGER REFERENCES dealers(id) ON DELETE CASCADE,  -- WO-002：放寬 nullable，LINE 客戶無經銷商（既有經銷商客戶值不變）
   name VARCHAR(255) NOT NULL,
   store_id INTEGER,     -- model 有（FK→stores）；stores 在本檔後段建，故此處不加 REFERENCES 避免前向依賴
   line_user_id TEXT,    -- model 有；LINE 下單客戶綁定（WO-002）
@@ -133,13 +133,14 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_email VARCHAR(255),
   total_cents INTEGER,                       -- 整數分位（改名：total_amount → total_cents）
   currency VARCHAR(3) DEFAULT 'TWD',
-  status VARCHAR(50) DEFAULT 'pending',
+  status VARCHAR(50) DEFAULT 'pending_confirm',    -- 對齊 model/enum（原 'pending' 不在 ORDER_STATUSES）
   channel VARCHAR(50),
   source_image_url TEXT,
   ai_extraction_id INTEGER,
   customer_id INTEGER REFERENCES customers(id),   -- 0004：下單客戶（AI 抄單建/綁）
   ai_extraction JSONB,                             -- 0004：AI 解析結果快照
   confirmed_at TIMESTAMP WITH TIME ZONE,           -- 0004：確認時間
+  line_event_id TEXT UNIQUE,                       -- WO-002：LINE webhookEventId，去重（一 event 一單）
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
