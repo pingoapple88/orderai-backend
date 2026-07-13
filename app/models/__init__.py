@@ -114,7 +114,7 @@ class UserPreference(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 欄名保留、FK→stores
+    store_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 原 tenant_id（0004 全面改名，對齊 DB）
     language: Mapped[str] = mapped_column(String(10), default="zh-TW")
     theme: Mapped[str] = mapped_column(String(10), default="light")
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -176,7 +176,7 @@ class BillingRecord(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 欄名保留、FK→stores
+    store_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 原 tenant_id（0004 全面改名，對齊 DB）
     order_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("orders.id", ondelete="SET NULL")
     )
@@ -195,7 +195,7 @@ class AIExtraction(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 欄名保留、FK→stores
+    store_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 原 tenant_id（0004 全面改名，對齊 DB）
     image_url: Mapped[Optional[str]] = mapped_column(Text)
     extraction_result: Mapped[Optional[dict]] = mapped_column(JSONB)
     confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(3, 2))  # 機率值
@@ -211,7 +211,7 @@ class AIUsageLog(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 欄名保留、FK→stores
+    store_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 原 tenant_id（0004 全面改名，對齊 DB）
     extraction_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("ai_extractions.id"))
     usage_date: Mapped[Optional[date]] = mapped_column(Date)
     usage_count: Mapped[int] = mapped_column(Integer, default=1)
@@ -224,7 +224,7 @@ class AuditLog(Base):
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
-    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 欄名保留、FK→stores
+    store_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("stores.id"))  # 原 tenant_id（0004 全面改名，對齊 DB）
     action: Mapped[Optional[str]] = mapped_column(String(255))
     resource_type: Mapped[Optional[str]] = mapped_column(String(50))
     resource_id: Mapped[Optional[int]] = mapped_column(Integer)

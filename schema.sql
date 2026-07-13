@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS dealers (
   id SERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
+  code VARCHAR(255) UNIQUE,  -- 推薦碼（model 有；非破壞 ADD，既有列先留 NULL）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -38,6 +39,8 @@ CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
   dealer_id INTEGER NOT NULL REFERENCES dealers(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
+  store_id INTEGER,     -- model 有（FK→stores）；stores 在本檔後段建，故此處不加 REFERENCES 避免前向依賴
+  line_user_id TEXT,    -- model 有；LINE 下單客戶綁定（WO-002）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
