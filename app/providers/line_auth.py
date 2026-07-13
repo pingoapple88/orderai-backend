@@ -49,12 +49,20 @@ class LineAuthProvider(IAuthProvider, INotificationProvider):
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-            token_resp.raise_for_status()
+            # debug（暫時）：raise_for_status 不含 body，看不到 LINE 的錯誤原因。
+            # 帶上 token_resp.text，LINE 會說明 invalid_client / redirect_uri mismatch 等。
+            if token_resp.status_code != 200:
+                raise RuntimeError(
+                    f"LINE token exchange failed: {token_resp.status_code} {token_resp.text}"
+                )
             access_token = token_resp.json()["access_token"]
             profile_resp = await client.get(
                 self.PROFILE, headers={"Authorization": "Bearer {}".format(access_token)}
             )
-            profile_resp.raise_for_status()
+            if profile_resp.status_code != 200:
+                raise RuntimeError(
+                    f"LINE profile fetch failed: {profile_resp.status_code} {profile_resp.text}"
+                )
             p = profile_resp.json()
         return AuthProfile(
             provider="line",
