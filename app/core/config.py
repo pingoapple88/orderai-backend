@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expire_days: int = 7
-    frontend_url: str = "http://localhost:8000"
+    # LINE callback 登入成功後導向的 app 前端網域（Cloudflare Pages）。
+    # ⛔ 預設必為 app 網域，嚴禁指向 LP(orderai.merchcore.ai)；漏設 FRONTEND_URL 也要導對 app。
+    # 實際值由 Railway 的 FRONTEND_URL 覆蓋；未來搬自訂子網域時一起改。
+    frontend_url: str = "https://orderai-frontend.pages.dev"
 
     # ── LINE 兩支 channel 完全分離（Task 4）──────────────────────────────────
     # Messaging channel：webhook 驗簽（HMAC）+ reply/push
