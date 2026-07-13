@@ -1,4 +1,6 @@
 """FastAPI 入口。路由對齊 API 契約 v1.0（/api/v1 前綴 + store-scoped 訂單）。"""
+import logging
+import sys
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
@@ -8,6 +10,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1 import auth, orders, webhook  # ※ superadmin 屬 /admin 紅線，本期不掛載
 from app.core.config import get_settings
 from app.core.response import error_response
+
+# debug（暫時）：讓應用層 log 與未處理例外 traceback 進 stdout（Railway 一定捕捉 stdout）。
+# PYTHONUNBUFFERED 只影響 print，不影響 logging；uvicorn/應用 logger 需自行配 handler。
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)

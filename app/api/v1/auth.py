@@ -50,7 +50,11 @@ async def line_callback(
     # CSRF：state 必須存在且與 login 時種下的 cookie 相符（compare_digest 防時序），fail-closed。
     if not state or not line_oauth_state or not secrets.compare_digest(state, line_oauth_state):
         raise HTTPException(400, "Invalid state")
-    profile = await get_auth_provider().exchange_code(code)
+    # ⚠️ DEBUG ONLY（診斷 callback 500 用，拿到錯誤後 revert，勿長留——會外洩內部細節）
+    try:
+        profile = await get_auth_provider().exchange_code(code)
+    except Exception as e:
+        raise HTTPException(500, f"LINE exchange failed: {e}")
 
     user = db.execute(select(User).where(User.line_id == profile.external_id)).scalar_one_or_none()
     if user is None:
