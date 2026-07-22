@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     jwt_expire_days: int = 7
     frontend_url: str = "http://localhost:8000"
 
+    # CORS 允許來源：逗號分隔，可多個。從 ENV `ALLOWED_ORIGINS` 讀（律二：外部化設定）。
+    # 預設保留現有正式 app 網域 → 沒設 ENV 時行為不變，不破壞現況。
+    allowed_origins: str = "https://app.orderai.merchcore.ai"
+
     # ── LINE 兩支 channel 完全分離（Task 4）──────────────────────────────────
     # Messaging channel：webhook 驗簽（HMAC）+ reply/push
     line_messaging_channel_id: str = ""
@@ -54,6 +58,11 @@ class Settings(BaseSettings):
 
     # i18n
     default_lang: str = "zh-TW"
+
+    @property
+    def allowed_origins_list(self) -> list:
+        """把逗號分隔的 allowed_origins 拆成 list（去空白、濾空項）。"""
+        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
 
 @lru_cache
