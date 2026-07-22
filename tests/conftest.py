@@ -9,6 +9,7 @@ import subprocess
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 from app.core.config import get_settings
 
@@ -52,3 +53,22 @@ def db_engine():
     with admin.connect() as c:
         c.execute(text(f"DROP DATABASE IF EXISTS {_TEST_DB}"))
     admin.dispose()
+
+
+# 測試會碰的表；CASCADE + RESTART IDENTITY 一次清空，保證每個 test 從空白起。
+_TRUNCATE = "order_items, orders, customers, users, stores, plans, audit_logs, dealers, companies"
+
+
+@pytest.fixture()
+def db_session(db_engine):
+    """function-scoped 真 session（bind 真 test DB）。進場先清表，離場關閉。
+    ⚠️ worker 內部會真 commit，故用 TRUNCATE 隔離，而非交易 rollback。"""
+    Session = sessionmaker(bind=db_engine, autoflush=False, autocommit=False, future=True)
+    s = Session()
+    s.execute(text(f"TRUNCATE {_TRUNCATE} RESTART IDENTITY CASCADE"))
+    s.commit()
+    try:
+        yield s
+    finally:
+        s.rollback()
+        s.close()

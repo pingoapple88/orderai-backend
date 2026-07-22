@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.core.events import event_bus
 from app.models import AuditLog, Order, OrderItem
-from app.services.tax import compute_tax
 
 # API 契約 v1.0：status 列舉僅此五個
 ORDER_STATUSES = {
@@ -35,37 +34,43 @@ def _order_number(db: Session) -> str:
     return f"OA-{date_part}-{cnt + 1:04d}"
 
 
+def _q_up(i: dict) -> tuple[int, int]:
+    """取 (數量, 單價分)。v0 不自動算價：缺單價當 0（整數分，⛔ 不做 ×100）。"""
+    return int(i.get("quantity") or 0), int(i.get("unit_price") or 0)
+
+
 def create_order(db: Session, principal: dict, data: dict) -> Order:
-    """由 worker / 測試建單。金額整數分：unit_price 直接是分。"""
+    """由 worker / 測試建單。金額全程整數分；v0（option A）不自動算價、不課稅：
+    單價留 0（team-mom 事後以 PUT 補價），total = Σ subtotal。"""
     items = data.get("items", [])
-    subtotal_sum = sum(int(i["quantity"]) * int(i["unit_price"]) for i in items)  # 整數分
-    market = data.get("market", "tw")
-    tax = compute_tax(subtotal_sum, market)          # 情境三：一次性計稅（整數分）
-    total = subtotal_sum + tax
+    subtotal_sum = sum(q * up for q, up in (_q_up(i) for i in items))  # 整數分，無稅
 
     order = Order(
         user_id=principal["user_id"],
         store_id=principal.get("store_id"),
         order_number=_order_number(db),
+        customer_id=data.get("customer_id"),          # WO-002：綁下單客戶
         customer_name=data.get("customer_name"),
         customer_phone=data.get("customer_phone"),
         customer_email=data.get("customer_email"),
-        total_cents=total,
+        total_cents=subtotal_sum,
         currency=data.get("currency", "TWD"),
         status="pending_confirm",
         channel=data.get("channel"),
+        line_event_id=data.get("line_event_id"),      # WO-002：去重（UNIQUE，撞則 IntegrityError）
+        ai_extraction=data.get("ai_extraction"),      # WO-002：AI 解析快照
         notes=data.get("notes"),
     )
     db.add(order)
     db.flush()
     for i in items:
-        q, up = int(i["quantity"]), int(i["unit_price"])  # up 為整數分
+        q, up = _q_up(i)
         db.add(OrderItem(
             order_id=order.id, product_name=i.get("product_name"),
             quantity=q, unit=i.get("unit", "個"),
             unit_price_cents=up, subtotal_cents=q * up,
         ))
-    _audit(db, principal, "order.create", order.id, new={"total_cents": total, "tax_cents": tax})
+    _audit(db, principal, "order.create", order.id, new={"total_cents": subtotal_sum})
     db.commit()
     db.refresh(order)
     event_bus.publish("order.created", {"order_id": order.id, "store_id": order.store_id})
@@ -112,14 +117,13 @@ def update_order(db: Session, principal: dict, store_id: int, order_id: int,
         db.flush()
         subtotal_sum = 0
         for i in updates["items"]:
-            q, up = int(i["quantity"]), int(i["unit_price"])
+            q, up = _q_up(i)
             subtotal_sum += q * up
             order.items.append(OrderItem(
                 product_name=i.get("product_name"), quantity=q,
                 unit=i.get("unit", "個"), unit_price_cents=up, subtotal_cents=q * up,
             ))
-        tax = compute_tax(subtotal_sum, updates.get("market", "tw"))
-        order.total_cents = subtotal_sum + tax
+        order.total_cents = subtotal_sum   # v0 不課稅：total = Σ subtotal（整數分，⛔ 不 ×100）
 
     _audit(db, principal, "order.update", order.id, old=old,
            new={"status": order.status, "total_cents": order.total_cents})

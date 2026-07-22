@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # AI 自動化（律八：信心閾值、fail-closed）
     ai_confidence_threshold: float = 0.7
 
+    # WO-002：v0 一人一店（快照 §九）。LINE 抄單建單的歸屬 store。
+    # 0 = 未設定 → worker fail-closed（不建孤兒單）。多店路由見 WO-007。
+    default_store_id: int = 0
+
     # PR-2：非同步佇列（情境一防禦）
     redis_url: str = "redis://localhost:6379/0"
     queue_backend: str = "redis"          # redis | memory（測試/開發）
