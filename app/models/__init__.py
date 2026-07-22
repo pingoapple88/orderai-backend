@@ -24,7 +24,9 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -235,6 +237,32 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
+class Product(Base):
+    """店家自有商品型錄（WO-006）。抄單別名比對 + 自動帶價的價格來源。
+
+    只做第三層（store 自有）；平台/owner 共用型錄不在本期。
+    - price_cents 為整數分（律七）。
+    - store_id NOT NULL + index（律三：所有存取以此過濾）。
+    - aliases 為 JSONB string array（與既有五處 JSONB 欄位一致；測試庫為真 PostgreSQL，不需 sqlite variant）。
+    - UNIQUE (store_id, name)：同店品名不得重複（含軟刪除列，故重建同名須先處理）。
+    - DELETE 為軟刪除（is_active=false），保留已成立訂單的品項參照。
+    """
+    __tablename__ = "products"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("stores.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    aliases: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    unit: Mapped[str] = mapped_column(Text, nullable=False)                     # 顆/斤/包/盒/箱
+    price_cents: Mapped[int] = mapped_column(Integer, nullable=False)           # 律七：整數分
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("store_id", "name", name="uq_products_store_name"),)
+
+
 class SystemSetting(Base):
     """PR-2：全域可調參數（禁止寫死於程式）。"""
     __tablename__ = "system_settings"
@@ -247,5 +275,5 @@ class SystemSetting(Base):
 __all__ = [
     "Company", "Dealer", "Store", "Plan", "Customer", "User", "UserPreference",
     "Order", "OrderItem", "BillingRecord", "AIExtraction", "AIUsageLog",
-    "AuditLog", "SystemSetting",
+    "AuditLog", "Product", "SystemSetting",
 ]

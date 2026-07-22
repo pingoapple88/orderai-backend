@@ -76,3 +76,33 @@ class OrderDetailOut(CamelModel):
     created_at: Optional[datetime] = None
     confirmed_at: Optional[datetime] = None  # → confirmedAt
     # aiExtraction 由路由端直接附加（原樣回傳已結構化的 JSONB）
+
+
+# ── 商品型錄（WO-006）─────────────────────────────────────────────────────────
+class ProductOut(CamelModel):
+    id: int
+    store_id: int                       # → storeId
+    name: str
+    aliases: List[str] = []
+    unit: str
+    price_cents: int                    # → priceCents（律七：整數分）
+    is_active: bool                     # → isActive
+    created_at: Optional[datetime] = None   # → createdAt
+    updated_at: Optional[datetime] = None   # → updatedAt
+
+
+class ProductCreate(CamelModel):
+    """POST 建立。price_cents 為 int → 非整數（如 45.5 / "abc"）Pydantic 自動 422（case #8）。"""
+    name: str
+    aliases: List[str] = []
+    unit: str
+    price_cents: int
+
+
+class ProductUpdate(CamelModel):
+    """PATCH 部分更新，欄位皆選填。price_cents 若給須為 int。"""
+    name: Optional[str] = None
+    aliases: Optional[List[str]] = None
+    unit: Optional[str] = None
+    price_cents: Optional[int] = None
+    is_active: Optional[bool] = None
