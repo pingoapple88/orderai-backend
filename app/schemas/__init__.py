@@ -106,3 +106,36 @@ class ProductUpdate(CamelModel):
     unit: Optional[str] = None
     price_cents: Optional[int] = None
     is_active: Optional[bool] = None
+
+
+# ── 開團批次 / 貼上抄單（WO-009）─────────────────────────────────────────────
+class BatchCreate(CamelModel):
+    title: str
+
+
+class BatchOut(CamelModel):
+    id: int
+    store_id: int                       # → storeId
+    title: str
+    status: str
+    created_at: Optional[datetime] = None   # → createdAt
+    closed_at: Optional[datetime] = None    # → closedAt
+
+
+class ParseRequest(CamelModel):
+    raw_text: str                       # ← rawText
+
+
+class CommitLine(CamelModel):
+    line_no: Optional[str] = None       # ← lineNo
+    customer_name: Optional[str] = None
+    product_name: Optional[str] = None
+    product_id: Optional[int] = None
+    qty: Optional[int] = None
+    unit: Optional[str] = None
+    unit_price_cents: Optional[int] = None  # ← unitPriceCents（null → 422 PRICE_REQUIRED）
+
+
+class CommitRequest(CamelModel):
+    raw_text: str                       # ← rawText（去重用）
+    lines: List[CommitLine] = []

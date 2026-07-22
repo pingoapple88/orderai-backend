@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api.v1 import auth, orders, products, webhook  # ※ superadmin 屬 /admin 紅線，本期不掛載
+from app.api.v1 import auth, batches, orders, products, webhook  # ※ superadmin 屬 /admin 紅線，本期不掛載
 from app.core.config import get_settings
 from app.core.response import error_response
 
@@ -73,3 +73,4 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(webhook.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(orders.router, prefix="/api/v1/stores/{store_id}/orders", tags=["orders"])
 app.include_router(products.router, prefix="/api/v1/stores/{store_id}/products", tags=["products"])
+app.include_router(batches.router, prefix="/api/v1/stores/{store_id}/batches", tags=["batches"])

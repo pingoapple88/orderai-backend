@@ -147,6 +147,9 @@ class Order(Base):
     ai_extraction: Mapped[Optional[dict]] = mapped_column(JSONB)  # 0004 新增
     confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # 0004 新增
     line_event_id: Mapped[Optional[str]] = mapped_column(Text, unique=True)  # WO-002 去重：LINE webhookEventId
+    batch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("order_batches.id"), index=True
+    )  # WO-009：所屬開團批次（貼上抄單 commit 建立）
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
@@ -264,6 +267,34 @@ class Product(Base):
     __table_args__ = (UniqueConstraint("store_id", "name", name="uq_products_store_name"),)
 
 
+class OrderBatch(Base):
+    """開團批次（WO-009）。貼上抄單以批次為單位；統計聚合掛在批次上。"""
+    __tablename__ = "order_batches"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("stores.id"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)          # 例：0720 週日團
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'open'"))  # open|closed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class OrderCommit(Base):
+    """commit 去重（WO-009）。同批次同原文只成立一次訂單。"""
+    __tablename__ = "order_commits"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    batch_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("order_batches.id"), nullable=False, index=True
+    )
+    raw_text_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("batch_id", "raw_text_sha256", name="uq_order_commits_batch_hash"),
+    )
+
+
 class SystemSetting(Base):
     """PR-2：全域可調參數（禁止寫死於程式）。"""
     __tablename__ = "system_settings"
@@ -276,5 +307,5 @@ class SystemSetting(Base):
 __all__ = [
     "Company", "Dealer", "Store", "Plan", "Customer", "User", "UserPreference",
     "Order", "OrderItem", "BillingRecord", "AIExtraction", "AIUsageLog",
-    "AuditLog", "Product", "SystemSetting",
+    "AuditLog", "Product", "OrderBatch", "OrderCommit", "SystemSetting",
 ]
