@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import Customer, Store, User
-from app.services import order_service
+from app.services import order_service, product_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -126,22 +126,36 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
     # 綁下單客戶（依 LINE userId）
     customer = _get_or_create_customer(db, store.id, user_id, result.customer_name)
 
-    # 建單（v0 單價 0；去重靠 line_event_id UNIQUE，撞則 IntegrityError）
+    # WO-006 §2.4：抽取品項用店家型錄帶價（未命中 → 價格 None，team-mom 事後補）。
+    priced = product_service.price_extracted_items(db, store.id, result.items)
+
+    # 建單（單價來自型錄；未命中 unit_price_cents=None → _q_up 視為 0；
+    #       去重靠 line_event_id UNIQUE，撞則 IntegrityError）
     principal = {"user_id": owner.id, "store_id": store.id}
+    base_extraction = result.raw or {
+        "confidence_score": result.confidence_score,
+        "industry_type": result.industry_type,
+    }
     data = {
         "items": [
-            {"product_name": it.product_name, "quantity": it.quantity,
-             "unit_price": it.unit_price}  # v0 = 0，⛔ 無 ×100
-            for it in result.items
+            {"product_name": p["product_name"], "quantity": p["quantity"],
+             "unit_price": p["unit_price_cents"]}  # None → 0（⛔ 無 ×100，已是整數分）
+            for p in priced
         ],
         "customer_id": customer.id if customer else None,
         "customer_name": result.customer_name,
         "customer_phone": result.customer_phone,
         "channel": "line",
         "line_event_id": line_event_id,
-        "ai_extraction": result.raw or {
-            "confidence_score": result.confidence_score,
-            "industry_type": result.industry_type,
+        # 帶價快照：每行 matchedProductId / unitPriceCents（未命中皆 null），供前端與稽核。
+        "ai_extraction": {
+            **base_extraction,
+            "lines": [
+                {"productName": p["product_name"], "quantity": p["quantity"],
+                 "matchedProductId": p["matched_product_id"],
+                 "unitPriceCents": p["unit_price_cents"]}
+                for p in priced
+            ],
         },
     }
     try:

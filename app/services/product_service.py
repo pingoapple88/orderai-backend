@@ -115,6 +115,27 @@ def soft_delete_product(db: Session, principal: dict, store_id: int, product_id:
     return True
 
 
+# ── §2.4 接進抄單：把抽取品項用型錄帶價 ──────────────────────────────────────
+
+def price_extracted_items(db: Session, store_id: int, items) -> list[dict]:
+    """WO-006 §2.4：抽取結果每一項呼叫 match_product 帶價。
+
+    回傳每項 dict：product_name / quantity / matched_product_id / unit_price_cents。
+    未命中 → matched_product_id 與 unit_price_cents 皆 None（不猜、不帶價）。
+    items 為 ExtractedItem 序列（.product_name / .quantity）。
+    """
+    out = []
+    for it in items:
+        matched = match_product(db, store_id, it.product_name)
+        out.append({
+            "product_name": it.product_name,
+            "quantity": it.quantity,
+            "matched_product_id": matched.id if matched else None,
+            "unit_price_cents": matched.price_cents if matched else None,
+        })
+    return out
+
+
 # ── 別名比對（本單核心）──────────────────────────────────────────────────────
 
 def match_product(db: Session, store_id: int, raw_name: str) -> Optional[Product]:
