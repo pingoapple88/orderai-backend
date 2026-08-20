@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expire_days: int = 7
-    frontend_url: str = "http://localhost:8000"
+    # LINE callback 登入成功後導向的 app 前端網域（正式對外子網域）。
+    # ⛔ 預設必為 app 網域，嚴禁指向 LP(orderai.merchcore.ai) 或 pages.dev；漏設 FRONTEND_URL 也要導對 app。
+    # 與後端 CORS allow_origins 同一網域（app.orderai.merchcore.ai），整條登入鏈一致。
+    # 實際值由 Railway 的 FRONTEND_URL 覆蓋。
+    frontend_url: str = "https://app.orderai.merchcore.ai"
 
     # CORS 允許來源：逗號分隔，可多個。從 ENV `ALLOWED_ORIGINS` 讀（律二：外部化設定）。
     # 預設保留現有正式 app 網域 → 沒設 ENV 時行為不變，不破壞現況。
