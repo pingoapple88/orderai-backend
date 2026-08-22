@@ -11,10 +11,13 @@ class ExtractedItem:
     # 統一結構：ecom 用 product_name/quantity/unit_price；
     # beauty 將 service_name 映射到 product_name，並帶 appointment_time / staff_name。
     product_name: str
-    quantity: int = 1
-    unit_price: int = 0
+    quantity: Optional[int] = None
+    unit: Optional[str] = None
+    unit_price: Optional[int] = None
     appointment_time: Optional[str] = None   # beauty
     staff_name: Optional[str] = None          # beauty
+    evidence: str = ""
+    confidence_score: float = 0.0
 
 
 @dataclass
@@ -23,7 +26,9 @@ class ExtractionResult:
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     confidence_score: float = 0.0
+    field_confidence: Dict[str, float] = field(default_factory=dict)
     industry_type: str = "ecom"
+    provider_name: str = ""
     raw: Dict = field(default_factory=dict)
 
 

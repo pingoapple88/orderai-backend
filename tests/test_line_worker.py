@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult
-from app.models import Customer, Order, OrderItem, Plan, Store, User
+from app.models import Customer, Order, OrderItem, Plan, Product, Store, User
 from app.workers import line_worker
 
 
@@ -42,7 +42,7 @@ def _install(monkeypatch, llm, notif, store_id):
 
 # ── seed / payload / run helpers ─────────────────────────────────────────────
 def _seed(db, *, owner_role="owner"):
-    plan = Plan(name="lite", monthly_price=0)
+    plan = Plan(name="lite", channel="direct", monthly_price=0)
     db.add(plan)
     db.flush()
     store = Store(name="乖乖商店", industry_type="ecom", market="tw")
@@ -50,16 +50,18 @@ def _seed(db, *, owner_role="owner"):
     db.flush()
     user = User(line_id="Uowner", name="老闆", role=owner_role,
                 store_id=store.id, plan_id=plan.id)
-    db.add(user)
+    apple = Product(store_id=store.id, name="蘋果", aliases=[], unit="顆", price_cents=4500)
+    banana = Product(store_id=store.id, name="香蕉", aliases=[], unit="根", price_cents=3000)
+    db.add_all([user, apple, banana])
     db.flush()
     db.commit()
     return store, user
 
 
 def _ok_result(name="王小明"):
-    # v0：AI 只抽 品項+數量+客戶，unit_price 留 0（不自動算價）
+    # 模型只抽取商品與數量；價格由店家型錄帶入。
     return ExtractionResult(
-        items=[ExtractedItem(product_name="蘋果", quantity=3, unit_price=0)],
+        items=[ExtractedItem(product_name="蘋果", quantity=3, evidence="蘋果 x3", confidence_score=0.9)],
         customer_name=name, confidence_score=0.9, industry_type="ecom",
         raw={"src": "test"},
     )
@@ -106,16 +108,16 @@ def test_llm_failure_notifies_and_no_order(db_session, monkeypatch):
 # ── 場景 3：信心 < 閾值 → fail-closed，不建單 ───────────────────────────────
 def test_low_confidence_fail_closed(db_session, monkeypatch):
     store, _ = _seed(db_session)
-    res = ExtractionResult(items=[ExtractedItem(product_name="蘋果", quantity=3)],
+    res = ExtractionResult(items=[ExtractedItem(product_name="蘋果", quantity=3, evidence="蘋果 x3", confidence_score=0.3)],
                            confidence_score=0.3, industry_type="ecom")
     notif = _FakeNotif()
     _install(monkeypatch, _FakeLLM(result=res), notif, store.id)
     _run(_text_payload(), db_session)
     assert _order_count(db_session) == 0
-    assert notif.sent and "無法解析" in notif.sent[0]["text"]
+    assert notif.sent and "人工確認" in notif.sent[0]["text"]
 
 
-# ── 場景 4：信心足 → 建單寫 DB（customer_id + 單價 0，無 ×100）───────────────
+# ── 場景 4：信心足且型錄命中 → 建單寫 DB ───────────────────────────────────────
 def test_high_confidence_creates_order(db_session, monkeypatch):
     store, owner = _seed(db_session)
     notif = _FakeNotif()
@@ -130,13 +132,13 @@ def test_high_confidence_creates_order(db_session, monkeypatch):
     assert o.customer_id is not None        # 綁客戶
     assert o.line_event_id == "evt-x"       # 去重鍵寫入
     assert o.status == "pending_confirm"
-    assert o.total_cents == 0               # v0 不自動算價
+    assert o.total_cents == 13500            # 單價由型錄帶入，值為整數分
     assert o.channel == "line"
 
     items = db_session.execute(select(OrderItem)).scalars().all()
     assert len(items) == 1
     assert items[0].product_name == "蘋果" and items[0].quantity == 3
-    assert items[0].unit_price_cents == 0 and items[0].subtotal_cents == 0  # ⛔ 無 ×100
+    assert items[0].unit_price_cents == 4500 and items[0].subtotal_cents == 13500
 
     cust = db_session.get(Customer, o.customer_id)
     assert cust.line_user_id == "Ubuyer9" and cust.store_id == store.id

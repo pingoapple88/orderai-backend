@@ -39,13 +39,17 @@ class Settings(BaseSettings):
     line_login_callback_url: str = "http://localhost:8000/api/v1/auth/line/callback"
 
     # LLM Provider（集團守則：AI 服務可替換）
-    llm_provider: str = "openai"
+    llm_provider: str = "http_chat"
     llm_api_key: str = ""
-    llm_api_base: str = "https://api.openai.com/v1"
-    llm_model: str = "gpt-4o"
+    llm_api_base: str = ""
+    llm_model: str = ""
+    llm_timeout_seconds: int = 60
+    llm_allow_empty_api_key: bool = False
 
     # AI 自動化（律八：信心閾值、fail-closed）
-    ai_confidence_threshold: float = 0.7
+    ai_confidence_threshold: float = 0.85
+    ai_max_items_per_order: int = 30
+    ai_max_quantity_per_item: int = 99
 
     # WO-002：v0 一人一店（快照 §九）。LINE 抄單建單的歸屬 store。
     # 0 = 未設定 → worker fail-closed（不建孤兒單）。多店路由見 WO-007。

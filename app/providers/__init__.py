@@ -5,7 +5,7 @@ from app.core.interfaces.llm_provider import ILLMProvider
 from app.core.interfaces.notification_provider import INotificationProvider
 from app.core.interfaces.payment_provider import IPaymentProvider
 from app.providers.line_auth import LineAuthProvider
-from app.providers.openai_llm import OpenAILLMProvider
+from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
 from app.providers.stallpay import StallPayProvider
 
 settings = get_settings()
@@ -16,10 +16,14 @@ def get_auth_provider() -> IAuthProvider:
 
 
 def get_llm_provider() -> ILLMProvider:
-    # 3.9-safe：以 if/elif 取代 match
-    # if settings.llm_provider.lower() == "claude": return ClaudeLLMProvider()
-    # if settings.llm_provider.lower() == "ollama": return OllamaLLMProvider()
-    return OpenAILLMProvider()
+    provider = settings.llm_provider.lower()
+    if provider in {"http_chat", "openai_compatible", "openai"}:
+        return OpenAICompatibleLLMProvider()
+    if provider == "ollama":
+        return OllamaLLMProvider()
+    if provider in {"anthropic", "claude"}:
+        return AnthropicMessagesLLMProvider()
+    raise RuntimeError("Unsupported LLM_PROVIDER: {}".format(settings.llm_provider))
 
 
 def get_notification_provider() -> INotificationProvider:
