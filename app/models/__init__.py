@@ -70,7 +70,8 @@ class Store(Base):
 class Plan(Base):
     __tablename__ = "plans"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False, default="direct")
     monthly_price: Mapped[int] = mapped_column(Integer, nullable=False)  # 整數分位（已合規）
     currency: Mapped[str] = mapped_column(String(3), default="TWD")
     ai_extraction_limit: Mapped[Optional[int]] = mapped_column(Integer)
@@ -78,6 +79,10 @@ class Plan(Base):
     features: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint("name", "channel", name="uq_plans_name_channel"),
+    )
 
 
 class Customer(Base):
