@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from app.core.config import get_settings
 from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, ILLMProvider
 
 
@@ -94,31 +93,44 @@ class OpenAICompatibleLLMProvider(ILLMProvider):
 
     provider_name = "openai_compatible"
 
+    def __init__(
+        self,
+        api_key: str = "",
+        api_base: str = "",
+        model: str = "",
+        timeout_seconds: int = 60,
+        allow_empty_api_key: bool = False,
+    ) -> None:
+        self.api_key = api_key
+        self.api_base = api_base
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+        self.allow_empty_api_key = allow_empty_api_key
+
     async def extract_order(
         self,
         image_url: Optional[str] = None,
         text: Optional[str] = None,
         industry_type: str = "ecom",
     ) -> ExtractionResult:
-        settings = get_settings()
-        if not settings.llm_api_key and not settings.llm_allow_empty_api_key:
+        if not self.api_key and not self.allow_empty_api_key:
             raise RuntimeError("LLM_API_KEY not configured")
-        if not settings.llm_api_base or not settings.llm_model:
+        if not self.api_base or not self.model:
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
 
         content: List[dict] = [{"type": "text", "text": text or ""}]
         if image_url:
             content.append({"type": "image_url", "image_url": {"url": image_url}})
         headers = {"Content-Type": "application/json"}
-        if settings.llm_api_key:
-            headers["Authorization"] = "Bearer {}".format(settings.llm_api_key)
+        if self.api_key:
+            headers["Authorization"] = "Bearer {}".format(self.api_key)
 
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await client.post(
-                "{}/chat/completions".format(settings.llm_api_base.rstrip("/")),
+                "{}/chat/completions".format(self.api_base.rstrip("/")),
                 headers=headers,
                 json={
-                    "model": settings.llm_model,
+                    "model": self.model,
                     "temperature": 0,
                     "response_format": {"type": "json_object"},
                     "messages": [
@@ -141,22 +153,33 @@ class OllamaLLMProvider(ILLMProvider):
 
     provider_name = "ollama"
 
+    def __init__(
+        self,
+        api_key: str = "",
+        api_base: str = "",
+        model: str = "",
+        timeout_seconds: int = 60,
+        allow_empty_api_key: bool = False,
+    ) -> None:
+        self.api_base = api_base
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+
     async def extract_order(
         self,
         image_url: Optional[str] = None,
         text: Optional[str] = None,
         industry_type: str = "ecom",
     ) -> ExtractionResult:
-        settings = get_settings()
-        if not settings.llm_api_base or not settings.llm_model:
+        if not self.api_base or not self.model:
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
         if image_url:
             raise RuntimeError("Ollama image URL input is not supported by this adapter")
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await client.post(
-                "{}/api/chat".format(settings.llm_api_base.rstrip("/")),
+                "{}/api/chat".format(self.api_base.rstrip("/")),
                 json={
-                    "model": settings.llm_model,
+                    "model": self.model,
                     "format": "json",
                     "stream": False,
                     "options": {"temperature": 0},
@@ -180,30 +203,42 @@ class AnthropicMessagesLLMProvider(ILLMProvider):
 
     provider_name = "anthropic"
 
+    def __init__(
+        self,
+        api_key: str = "",
+        api_base: str = "",
+        model: str = "",
+        timeout_seconds: int = 60,
+        allow_empty_api_key: bool = False,
+    ) -> None:
+        self.api_key = api_key
+        self.api_base = api_base
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+
     async def extract_order(
         self,
         image_url: Optional[str] = None,
         text: Optional[str] = None,
         industry_type: str = "ecom",
     ) -> ExtractionResult:
-        settings = get_settings()
-        if not settings.llm_api_key:
+        if not self.api_key:
             raise RuntimeError("LLM_API_KEY not configured")
-        if not settings.llm_api_base or not settings.llm_model:
+        if not self.api_base or not self.model:
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
         content: List[dict] = [{"type": "text", "text": text or ""}]
         if image_url:
             content.append({"type": "image", "source": {"type": "url", "url": image_url}})
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await client.post(
-                "{}/messages".format(settings.llm_api_base.rstrip("/")),
+                "{}/messages".format(self.api_base.rstrip("/")),
                 headers={
-                    "x-api-key": settings.llm_api_key,
+                    "x-api-key": self.api_key,
                     "anthropic-version": "2023-06-01",
                     "content-type": "application/json",
                 },
                 json={
-                    "model": settings.llm_model,
+                    "model": self.model,
                     "max_tokens": 1024,
                     "temperature": 0,
                     "system": _ORDER_PROMPTS.get(industry_type, _ORDER_PROMPTS["ecom"]),

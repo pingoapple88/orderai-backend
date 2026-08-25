@@ -56,7 +56,7 @@ def db_engine():
 
 
 # 測試會碰的表；CASCADE + RESTART IDENTITY 一次清空，保證每個 test 從空白起。
-_TRUNCATE = "order_items, orders, customers, users, stores, plans, audit_logs, dealers, companies"
+_TRUNCATE = "module_event_outbox, module_registrations, order_items, orders, customers, users, stores, plans, audit_logs, dealers, companies"
 
 
 @pytest.fixture()

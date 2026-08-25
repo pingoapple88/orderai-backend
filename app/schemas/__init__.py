@@ -139,3 +139,46 @@ class CommitLine(CamelModel):
 class CommitRequest(CamelModel):
     raw_text: str                       # ← rawText（去重用）
     lines: List[CommitLine] = []
+
+
+# ── W2 Module self-service ──────────────────────────────────────────────────
+class ModuleRegistrationCreate(CamelModel):
+    company_name: str
+    store_name: str
+    channel: str
+    locale: str = "zh-TW"
+    idempotency_key: str
+    plan_name: Optional[str] = None
+
+
+class ModulePlanOut(CamelModel):
+    name: str
+    channel: str
+    monthly_price: int
+    currency: str
+    ai_extraction_limit: Optional[int] = None
+    team_member_limit: Optional[int] = None
+    price_version_date: str = "2026-08-24"
+    price_disclaimer: str = "以官網最新價格為準"
+
+
+class ModuleRegistrationOut(CamelModel):
+    id: int
+    company_id: int
+    store_id: int
+    module_key: str
+    module_version: str
+    channel: str
+    locale: str
+    status: str
+    event_id: Optional[str] = None
+
+
+class ModuleStatusOut(CamelModel):
+    company_id: int
+    store_key: Optional[str] = None
+    plan_name: Optional[str] = None
+    channel: Optional[str] = None
+    ai_usage_count: int
+    ai_extraction_limit: Optional[int] = None
+    status: str

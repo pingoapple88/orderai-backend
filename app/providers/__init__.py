@@ -4,6 +4,7 @@ from app.core.interfaces.auth_provider import IAuthProvider
 from app.core.interfaces.llm_provider import ILLMProvider
 from app.core.interfaces.notification_provider import INotificationProvider
 from app.core.interfaces.payment_provider import IPaymentProvider
+from app.providers.failover_llm import FailoverLLMProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
 from app.providers.stallpay import StallPayProvider
@@ -15,15 +16,41 @@ def get_auth_provider() -> IAuthProvider:
     return LineAuthProvider()
 
 
-def get_llm_provider() -> ILLMProvider:
-    provider = settings.llm_provider.lower()
+def _build_llm_provider(provider: str, *, use_fallback_settings: bool = False) -> ILLMProvider:
+    provider = provider.lower()
+    connection = {
+        "api_key": settings.llm_fallback_api_key if use_fallback_settings else settings.llm_api_key,
+        "api_base": settings.llm_fallback_api_base if use_fallback_settings else settings.llm_api_base,
+        "model": settings.llm_fallback_model if use_fallback_settings else settings.llm_model,
+        "timeout_seconds": (
+            settings.llm_fallback_timeout_seconds
+            if use_fallback_settings
+            else settings.llm_timeout_seconds
+        ),
+        "allow_empty_api_key": (
+            settings.llm_fallback_allow_empty_api_key
+            if use_fallback_settings
+            else settings.llm_allow_empty_api_key
+        ),
+    }
     if provider in {"http_chat", "openai_compatible", "openai"}:
-        return OpenAICompatibleLLMProvider()
+        return OpenAICompatibleLLMProvider(**connection)
     if provider == "ollama":
-        return OllamaLLMProvider()
+        return OllamaLLMProvider(**connection)
     if provider in {"anthropic", "claude"}:
-        return AnthropicMessagesLLMProvider()
-    raise RuntimeError("Unsupported LLM_PROVIDER: {}".format(settings.llm_provider))
+        return AnthropicMessagesLLMProvider(**connection)
+    raise RuntimeError("Unsupported LLM provider: {}".format(provider))
+
+
+def get_llm_provider() -> ILLMProvider:
+    primary = _build_llm_provider(settings.llm_provider)
+    fallback_name = settings.llm_fallback_provider.strip()
+    if not fallback_name:
+        return primary
+    return FailoverLLMProvider(
+        primary=primary,
+        fallback=_build_llm_provider(fallback_name, use_fallback_settings=True),
+    )
 
 
 def get_notification_provider() -> INotificationProvider:
