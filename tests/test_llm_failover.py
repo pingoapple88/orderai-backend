@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+import httpx
 
-from app.core.interfaces.llm_provider import ExtractionResult, ILLMProvider
+from app.core.interfaces.llm_provider import ExtractionResult, ILLMProvider, LLMProviderExecutionError
 from app.providers.failover_llm import FailoverLLMProvider
 
 
@@ -50,5 +51,18 @@ async def test_all_provider_failures_remain_fail_closed():
         StubProvider(error=RuntimeError("fallback unavailable")),
     )
 
-    with pytest.raises(RuntimeError, match="manual review"):
+    with pytest.raises(LLMProviderExecutionError, match="manual review") as exc:
         await provider.extract_order(text="蘋果 2 顆")
+    assert exc.value.reason_code == "provider_error"
+
+
+@pytest.mark.asyncio
+async def test_all_provider_timeouts_remain_fail_closed_with_timeout_reason():
+    provider = FailoverLLMProvider(
+        StubProvider(error=httpx.TimeoutException("primary timeout")),
+        StubProvider(error=httpx.TimeoutException("fallback timeout")),
+    )
+
+    with pytest.raises(LLMProviderExecutionError, match="manual review") as exc:
+        await provider.extract_order(text="蘋果 2 顆")
+    assert exc.value.reason_code == "provider_timeout"

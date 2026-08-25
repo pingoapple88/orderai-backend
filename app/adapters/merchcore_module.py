@@ -30,7 +30,7 @@ class OrderAIMerchCoreAdapter:
     """只提供描述與簽名事件，不連線或耦合其他模組資料庫。"""
 
     @staticmethod
-    def module_manifest() -> dict[str, Any]:
+    def module_manifest(event_types: tuple[str, ...] = ()) -> dict[str, Any]:
         return {
             "module_key": MODULE_KEY,
             "module_version": MODULE_VERSION,
@@ -45,11 +45,7 @@ class OrderAIMerchCoreAdapter:
             ],
             "registration_endpoint": "/api/v1/module/orderai/registrations",
             "health_endpoint": "/api/v1/module/orderai/health",
-            "event_types": [
-                "Module_Registration_Requested",
-                "Module_Activated",
-                "Subscription_Status_Changed",
-            ],
+            "event_types": list(event_types),
             "status": "available",
         }
 

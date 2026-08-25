@@ -22,6 +22,7 @@ def _build_llm_provider(provider: str, *, use_fallback_settings: bool = False) -
         "api_key": settings.llm_fallback_api_key if use_fallback_settings else settings.llm_api_key,
         "api_base": settings.llm_fallback_api_base if use_fallback_settings else settings.llm_api_base,
         "model": settings.llm_fallback_model if use_fallback_settings else settings.llm_model,
+        "temperature": settings.llm_fallback_temperature if use_fallback_settings else settings.llm_temperature,
         "timeout_seconds": (
             settings.llm_fallback_timeout_seconds
             if use_fallback_settings
@@ -32,6 +33,7 @@ def _build_llm_provider(provider: str, *, use_fallback_settings: bool = False) -
             if use_fallback_settings
             else settings.llm_allow_empty_api_key
         ),
+        "max_retries": settings.llm_fallback_max_retries if use_fallback_settings else settings.llm_max_retries,
     }
     if provider in {"http_chat", "openai_compatible", "openai"}:
         return OpenAICompatibleLLMProvider(**connection)

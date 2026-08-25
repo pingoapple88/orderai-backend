@@ -10,12 +10,14 @@ from sqlalchemy import select
 
 from app.adapters.merchcore_module import OrderAIMerchCoreAdapter
 from app.core.config import get_settings
-from app.models import AuditLog, ModuleEventOutbox, ModuleRegistration, Plan, Store, User
+from app.models import AuditLog, Company, ModuleEventOutbox, ModuleRegistration, Plan, Store, User
 from app.services import module_service
 
 
 def _set_signing_secret(monkeypatch):
     monkeypatch.setattr(get_settings(), "module_event_signing_secret", "test-module-secret")
+    monkeypatch.setattr(get_settings(), "module_event_types", "contract.module.registration")
+    monkeypatch.setattr(get_settings(), "module_registration_event_type", "contract.module.registration")
 
 
 def test_manifest_has_five_locales_and_no_price():
@@ -107,6 +109,7 @@ def test_plan_catalog_reads_channel_pricing_without_hardcoding(db_session):
 
 
 def test_registration_fails_closed_without_event_secret(db_session, monkeypatch):
+    _set_signing_secret(monkeypatch)
     monkeypatch.setattr(get_settings(), "module_event_signing_secret", "")
 
     with pytest.raises(RuntimeError, match="MODULE_EVENT_SIGNING_SECRET"):
@@ -117,6 +120,22 @@ def test_registration_fails_closed_without_event_secret(db_session, monkeypatch)
             channel="direct",
             locale="zh-TW",
             idempotency_key="module-registration-003",
+        )
+
+
+def test_registration_fails_closed_without_governed_event_type(db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "module_event_signing_secret", "test-module-secret")
+    monkeypatch.setattr(get_settings(), "module_event_types", "")
+    monkeypatch.setattr(get_settings(), "module_registration_event_type", "")
+
+    with pytest.raises(RuntimeError, match="not approved by registry"):
+        module_service.register_self_service(
+            db_session,
+            company_name="Synthetic Company",
+            store_name="Synthetic Store",
+            channel="direct",
+            locale="zh-TW",
+            idempotency_key="module-registration-registry",
         )
 
 
@@ -152,5 +171,16 @@ def test_status_uses_principal_store_scope(db_session, monkeypatch):
     assert status["company_id"] == registration.company_id
     assert status["channel"] == "enterprise"
     assert status["ai_usage_count"] == 3
-    with pytest.raises(HTTPException, match="Module tenant not found"):
+    with pytest.raises(HTTPException, match="Tenant scope denied"):
         module_service.get_module_status(db_session, principal={"user_id": owner.id, "store_id": 999999})
+
+    other_company = Company(name="Other Company")
+    db_session.add(other_company)
+    db_session.flush()
+    other_store = Store(name="Other Store", company_id=other_company.id)
+    db_session.add(other_store)
+    db_session.commit()
+    with pytest.raises(HTTPException, match="Tenant scope denied"):
+        module_service.get_module_status(
+            db_session, principal={"user_id": owner.id, "store_id": other_store.id}
+        )

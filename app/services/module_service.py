@@ -70,8 +70,14 @@ def register_self_service(
     db.add(registration)
     db.flush()
 
+    event_type = get_settings().module_registration_event_type.strip()
+    allowed_event_types = {
+        item.strip() for item in get_settings().module_event_types.split(",") if item.strip()
+    }
+    if not event_type or event_type not in allowed_event_types:
+        raise RuntimeError("MODULE_REGISTRATION_EVENT_TYPE is not approved by registry")
     event = OrderAIMerchCoreAdapter.build_event(
-        event_type="Module_Registration_Requested",
+        event_type=event_type,
         company_id=company.id,
         idempotency_key=idempotency_key,
         payload={
@@ -133,6 +139,9 @@ def list_plans(db: Session, *, channel: str) -> list[Plan]:
 def get_module_status(db: Session, *, principal: dict) -> dict:
     """以 JWT 的 store_id 推導 company_id，不接受 client 提供的租戶值。"""
     store_id = principal.get("store_id")
+    user = db.get(User, principal.get("user_id"))
+    if user is None or user.store_id != store_id:
+        raise HTTPException(status_code=403, detail="Tenant scope denied")
     store = db.get(Store, store_id)
     if store is None or store.company_id is None:
         raise HTTPException(status_code=404, detail="Module tenant not found")
@@ -145,7 +154,6 @@ def get_module_status(db: Session, *, principal: dict) -> dict:
         )
         .order_by(ModuleRegistration.id.desc())
     ).scalars().first()
-    user = db.get(User, principal.get("user_id"))
     plan = None
     if store.plan:
         channel = registration.channel if registration else "direct"

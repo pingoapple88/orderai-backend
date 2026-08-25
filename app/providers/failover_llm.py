@@ -1,9 +1,12 @@
 """LLM 備援 Adapter；僅在主 Provider 呼叫失敗時才切換，低信心結果仍由風險守衛 fail-closed。"""
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
-from app.core.interfaces.llm_provider import ExtractionResult, ILLMProvider
+import httpx
+
+from app.core.interfaces.llm_provider import ExtractionResult, ILLMProvider, LLMProviderExecutionError
 
 
 class FailoverLLMProvider(ILLMProvider):
@@ -35,6 +38,13 @@ class FailoverLLMProvider(ILLMProvider):
                     industry_type=industry_type,
                 )
             except Exception as fallback_error:
-                raise RuntimeError(
-                    "All configured LLM providers failed; order requires manual review"
+                errors = (primary_error, fallback_error)
+                reason_code = "provider_timeout" if any(
+                    isinstance(error, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError))
+                    or getattr(error, "reason_code", None) == "provider_timeout"
+                    for error in errors
+                ) else "provider_error"
+                raise LLMProviderExecutionError(
+                    reason_code,
+                    "All configured LLM providers failed; order requires manual review",
                 ) from fallback_error
