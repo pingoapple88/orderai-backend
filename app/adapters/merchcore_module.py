@@ -1,12 +1,7 @@
-"""OrderAI 對 MerchCore 的模組能力與事件 Adapter。"""
+"""OrderAI 模組描述 Adapter；本輪不宣告或產生任何模組生命週期事件。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from hashlib import sha256
-import hmac
-import json
 from typing import Any
-from uuid import uuid4
 
 
 SUPPORTED_LOCALES = ("zh-TW", "en", "th", "ja", "id")
@@ -27,10 +22,10 @@ def normalize_locale(locale: str | None) -> str:
 
 
 class OrderAIMerchCoreAdapter:
-    """只提供描述與簽名事件，不連線或耦合其他模組資料庫。"""
+    """只提供模組描述；不連線或耦合其他模組資料庫，也不產生生命週期事件。"""
 
     @staticmethod
-    def module_manifest(event_types: tuple[str, ...] = ()) -> dict[str, Any]:
+    def module_manifest() -> dict[str, Any]:
         return {
             "module_key": MODULE_KEY,
             "module_version": MODULE_VERSION,
@@ -45,32 +40,5 @@ class OrderAIMerchCoreAdapter:
             ],
             "registration_endpoint": "/api/v1/module/orderai/registrations",
             "health_endpoint": "/api/v1/module/orderai/health",
-            "event_types": list(event_types),
             "status": "available",
         }
-
-    @staticmethod
-    def build_event(
-        *,
-        event_type: str,
-        company_id: int,
-        idempotency_key: str,
-        payload: dict[str, Any],
-        signing_secret: str,
-    ) -> dict[str, Any]:
-        if not signing_secret:
-            raise RuntimeError("MODULE_EVENT_SIGNING_SECRET not configured")
-        event = {
-            "event_id": str(uuid4()),
-            "event_version": MODULE_VERSION,
-            "event_type": event_type,
-            "occurred_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "company_id": int(company_id),
-            "idempotency_key": idempotency_key,
-            "payload": payload,
-        }
-        canonical = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        event["signature"] = hmac.new(
-            signing_secret.encode("utf-8"), canonical.encode("utf-8"), sha256
-        ).hexdigest()
-        return event

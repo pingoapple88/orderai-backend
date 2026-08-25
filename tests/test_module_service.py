@@ -1,37 +1,27 @@
 from __future__ import annotations
 
-import hmac
 import json
-from hashlib import sha256
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.adapters.merchcore_module import OrderAIMerchCoreAdapter
-from app.core.config import get_settings
-from app.models import AuditLog, Company, ModuleEventOutbox, ModuleRegistration, Plan, Store, User
+from app.models import AuditLog, Company, ModuleRegistration, Plan, Store, User
 from app.services import module_service
 
 
-def _set_signing_secret(monkeypatch):
-    monkeypatch.setattr(get_settings(), "module_event_signing_secret", "test-module-secret")
-    monkeypatch.setattr(get_settings(), "module_event_types", "contract.module.registration")
-    monkeypatch.setattr(get_settings(), "module_registration_event_type", "contract.module.registration")
-
-
-def test_manifest_has_five_locales_and_no_price():
+def test_manifest_has_five_locales_and_no_event_types_or_price():
     manifest = OrderAIMerchCoreAdapter.module_manifest()
 
     assert manifest["module_key"] == "orderai"
     assert set(manifest["supported_locales"]) == {"zh-TW", "en", "th", "ja", "id"}
     assert "monthly_price" not in manifest
+    assert "event_types" not in manifest
     assert manifest["registration_endpoint"].startswith("/api/")
 
 
-def test_registration_creates_integer_tenant_signed_event_and_redacted_audit(db_session, monkeypatch):
-    _set_signing_secret(monkeypatch)
-
+def test_registration_creates_service_state_and_redacted_audit_without_event(db_session):
     registration = module_service.register_self_service(
         db_session,
         company_name="Synthetic Company",
@@ -42,34 +32,16 @@ def test_registration_creates_integer_tenant_signed_event_and_redacted_audit(db_
     )
 
     store = db_session.get(Store, registration.store_id)
-    event = db_session.execute(select(ModuleEventOutbox)).scalar_one()
     audit = db_session.execute(select(AuditLog)).scalar_one()
-    assert isinstance(registration.company_id, int)
     assert registration.locale == "zh-TW"
+    assert registration.status == "pending_activation"
     assert store.store_key.startswith("ord_")
-    assert event.company_id == registration.company_id
-    assert event.event_version == "1.8"
-    assert event.payload["store_key"] == store.store_key
     assert "Synthetic Company" not in json.dumps(audit.new_value, ensure_ascii=False)
     assert "Synthetic Store" not in json.dumps(audit.new_value, ensure_ascii=False)
-    unsigned = {
-        "event_id": event.event_id,
-        "event_version": event.event_version,
-        "event_type": event.event_type,
-        "occurred_at": event.occurred_at,
-        "company_id": event.company_id,
-        "idempotency_key": event.idempotency_key,
-        "payload": event.payload,
-    }
-    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    assert hmac.compare_digest(
-        event.signature,
-        hmac.new(b"test-module-secret", canonical.encode("utf-8"), sha256).hexdigest(),
-    )
+    assert "event_id" not in audit.new_value
 
 
-def test_registration_is_idempotent_and_does_not_duplicate_event(db_session, monkeypatch):
-    _set_signing_secret(monkeypatch)
+def test_registration_is_idempotent_and_does_not_create_event(db_session):
     first = module_service.register_self_service(
         db_session,
         company_name="Synthetic Company",
@@ -88,8 +60,20 @@ def test_registration_is_idempotent_and_does_not_duplicate_event(db_session, mon
     )
 
     assert second.id == first.id
-    assert db_session.execute(select(ModuleRegistration)).scalars().all()[0].id == first.id
-    assert len(db_session.execute(select(ModuleEventOutbox)).scalars().all()) == 1
+    assert len(db_session.execute(select(ModuleRegistration)).scalars().all()) == 1
+    assert len(db_session.execute(select(AuditLog)).scalars().all()) == 1
+
+
+def test_registration_does_not_require_event_registry_settings(db_session):
+    registration = module_service.register_self_service(
+        db_session,
+        company_name="Synthetic Company",
+        store_name="Synthetic Store",
+        channel="direct",
+        locale="zh-TW",
+        idempotency_key="module-registration-no-event-registry",
+    )
+    assert registration.status == "pending_activation"
 
 
 def test_plan_catalog_reads_channel_pricing_without_hardcoding(db_session):
@@ -108,39 +92,7 @@ def test_plan_catalog_reads_channel_pricing_without_hardcoding(db_session):
     ]
 
 
-def test_registration_fails_closed_without_event_secret(db_session, monkeypatch):
-    _set_signing_secret(monkeypatch)
-    monkeypatch.setattr(get_settings(), "module_event_signing_secret", "")
-
-    with pytest.raises(RuntimeError, match="MODULE_EVENT_SIGNING_SECRET"):
-        module_service.register_self_service(
-            db_session,
-            company_name="Synthetic Company",
-            store_name="Synthetic Store",
-            channel="direct",
-            locale="zh-TW",
-            idempotency_key="module-registration-003",
-        )
-
-
-def test_registration_fails_closed_without_governed_event_type(db_session, monkeypatch):
-    monkeypatch.setattr(get_settings(), "module_event_signing_secret", "test-module-secret")
-    monkeypatch.setattr(get_settings(), "module_event_types", "")
-    monkeypatch.setattr(get_settings(), "module_registration_event_type", "")
-
-    with pytest.raises(RuntimeError, match="not approved by registry"):
-        module_service.register_self_service(
-            db_session,
-            company_name="Synthetic Company",
-            store_name="Synthetic Store",
-            channel="direct",
-            locale="zh-TW",
-            idempotency_key="module-registration-registry",
-        )
-
-
-def test_status_uses_principal_store_scope(db_session, monkeypatch):
-    _set_signing_secret(monkeypatch)
+def test_status_uses_principal_store_scope(db_session):
     registration = module_service.register_self_service(
         db_session,
         company_name="Synthetic Company",
@@ -151,16 +103,14 @@ def test_status_uses_principal_store_scope(db_session, monkeypatch):
     )
     plan = Plan(name="pending_activation", channel="enterprise", monthly_price=0, ai_extraction_limit=100)
     db_session.add(plan)
+    db_session.flush()
     owner = User(
         line_id="U_module_test_owner",
-        plan_id=plan.id if plan.id else 1,
+        plan_id=plan.id,
         store_id=registration.store_id,
         role="owner",
         ai_usage_count=3,
     )
-    db_session.add(plan)
-    db_session.flush()
-    owner.plan_id = plan.id
     db_session.add(owner)
     db_session.commit()
 
@@ -168,7 +118,7 @@ def test_status_uses_principal_store_scope(db_session, monkeypatch):
         db_session, principal={"user_id": owner.id, "store_id": registration.store_id, "role": "owner"}
     )
 
-    assert status["company_id"] == registration.company_id
+    assert "company_id" not in status
     assert status["channel"] == "enterprise"
     assert status["ai_usage_count"] == 3
     with pytest.raises(HTTPException, match="Tenant scope denied"):

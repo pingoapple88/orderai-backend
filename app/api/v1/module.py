@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.adapters.merchcore_module import OrderAIMerchCoreAdapter
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_principal
 from app.core.response import success_response
@@ -21,10 +20,7 @@ def module_health() -> dict:
 
 @router.get("/orderai/manifest")
 def module_manifest() -> dict:
-    event_types = tuple(
-        item.strip() for item in get_settings().module_event_types.split(",") if item.strip()
-    )
-    return success_response(OrderAIMerchCoreAdapter.module_manifest(event_types))
+    return success_response(OrderAIMerchCoreAdapter.module_manifest())
 
 
 @router.get("/orderai/plans")

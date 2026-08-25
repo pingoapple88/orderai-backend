@@ -164,18 +164,15 @@ class ModulePlanOut(CamelModel):
 
 class ModuleRegistrationOut(CamelModel):
     id: int
-    company_id: int
     store_id: int
     module_key: str
     module_version: str
     channel: str
     locale: str
     status: str
-    event_id: Optional[str] = None
 
 
 class ModuleStatusOut(CamelModel):
-    company_id: int
     store_key: Optional[str] = None
     plan_name: Optional[str] = None
     channel: Optional[str] = None

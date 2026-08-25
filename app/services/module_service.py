@@ -7,9 +7,8 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.adapters.merchcore_module import MODULE_KEY, MODULE_VERSION, OrderAIMerchCoreAdapter, normalize_locale
-from app.core.config import get_settings
-from app.models import AuditLog, Company, ModuleEventOutbox, ModuleRegistration, Plan, Store, User
+from app.adapters.merchcore_module import MODULE_KEY, MODULE_VERSION, normalize_locale
+from app.models import AuditLog, Company, ModuleRegistration, Plan, Store, User
 
 
 def _store_key() -> str:
@@ -26,7 +25,7 @@ def register_self_service(
     idempotency_key: str,
     plan_name: str | None = None,
 ) -> ModuleRegistration:
-    """建立待啟用註冊；public request 不可提供 company_id，伺服器自行產生整數租戶鍵。"""
+    """建立待啟用註冊；服務狀態只在 OrderAI 內保存，不產生生命週期事件。"""
     if channel not in {"direct", "dealer", "enterprise"}:
         raise HTTPException(status_code=422, detail="Unsupported channel")
     existing = db.execute(
@@ -70,41 +69,6 @@ def register_self_service(
     db.add(registration)
     db.flush()
 
-    event_type = get_settings().module_registration_event_type.strip()
-    allowed_event_types = {
-        item.strip() for item in get_settings().module_event_types.split(",") if item.strip()
-    }
-    if not event_type or event_type not in allowed_event_types:
-        raise RuntimeError("MODULE_REGISTRATION_EVENT_TYPE is not approved by registry")
-    event = OrderAIMerchCoreAdapter.build_event(
-        event_type=event_type,
-        company_id=company.id,
-        idempotency_key=idempotency_key,
-        payload={
-            "module_key": MODULE_KEY,
-            "module_version": MODULE_VERSION,
-            "store_key": store.store_key,
-            "channel": channel,
-            "locale": normalized_locale,
-            "plan_name": plan_name,
-            "status": registration.status,
-        },
-        signing_secret=get_settings().module_event_signing_secret,
-    )
-    registration.event_id = event["event_id"]
-    db.add(
-        ModuleEventOutbox(
-            event_id=event["event_id"],
-            event_version=event["event_version"],
-            event_type=event["event_type"],
-            occurred_at=event["occurred_at"],
-            company_id=company.id,
-            idempotency_key=idempotency_key,
-            payload=event["payload"],
-            signature=event["signature"],
-            status="pending",
-        )
-    )
     db.add(
         AuditLog(
             store_id=store.id,
@@ -114,12 +78,10 @@ def register_self_service(
             new_value={
                 "module_key": MODULE_KEY,
                 "module_version": MODULE_VERSION,
-                "company_id": company.id,
                 "channel": channel,
                 "locale": normalized_locale,
                 "plan_name": plan_name,
                 "status": registration.status,
-                "event_id": event["event_id"],
             },
         )
     )
@@ -163,7 +125,6 @@ def get_module_status(db: Session, *, principal: dict) -> dict:
             .order_by(Plan.id.asc())
         ).scalars().first()
     return {
-        "company_id": store.company_id,
         "store_key": store.store_key,
         "registration": registration,
         "plan_name": store.plan,

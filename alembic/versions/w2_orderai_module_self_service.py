@@ -29,7 +29,6 @@ def upgrade() -> None:
           locale VARCHAR(10) NOT NULL,
           status VARCHAR(50) NOT NULL,
           idempotency_key VARCHAR(255) NOT NULL,
-          event_id VARCHAR(64) UNIQUE,
           created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT uq_module_registration_idempotency UNIQUE (module_key, idempotency_key)
@@ -38,29 +37,9 @@ def upgrade() -> None:
     )
     op.execute("CREATE INDEX IF NOT EXISTS idx_module_registrations_company_id ON module_registrations(company_id)")
     op.execute("CREATE INDEX IF NOT EXISTS idx_module_registrations_store_id ON module_registrations(store_id)")
-    op.execute(
-        """
-        CREATE TABLE IF NOT EXISTS module_event_outbox (
-          id SERIAL PRIMARY KEY,
-          event_id VARCHAR(64) NOT NULL UNIQUE,
-          event_version VARCHAR(20) NOT NULL,
-          event_type VARCHAR(100) NOT NULL,
-          occurred_at VARCHAR(40) NOT NULL,
-          company_id INTEGER NOT NULL REFERENCES companies(id),
-          idempotency_key VARCHAR(255) NOT NULL,
-          payload JSONB NOT NULL,
-          signature VARCHAR(128) NOT NULL,
-          status VARCHAR(30) NOT NULL DEFAULT 'pending',
-          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT uq_module_event_idempotency UNIQUE (company_id, idempotency_key)
-        )
-        """
-    )
-    op.execute("CREATE INDEX IF NOT EXISTS idx_module_event_outbox_company_id ON module_event_outbox(company_id)")
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS module_event_outbox")
     op.execute("DROP TABLE IF EXISTS module_registrations")
     op.execute("ALTER TABLE stores DROP CONSTRAINT IF EXISTS uq_stores_store_key")
     op.execute("ALTER TABLE stores DROP COLUMN IF EXISTS store_key")

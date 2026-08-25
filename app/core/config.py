@@ -58,11 +58,6 @@ class Settings(BaseSettings):
     llm_fallback_max_retries: int = 0
     llm_fallback_allow_empty_api_key: bool = False
 
-    # Contract v1.8：模組事件僅以 HMAC 簽名後寫入 outbox；缺失時註冊 fail-closed。
-    module_event_signing_secret: str = ""
-    module_event_types: str = ""
-    module_registration_event_type: str = ""
-
     # AI 自動化（律八：信心閾值、fail-closed）
     ai_confidence_threshold: float = 0.85
     ai_max_items_per_order: int = 30
