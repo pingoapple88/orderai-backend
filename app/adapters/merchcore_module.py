@@ -27,10 +27,10 @@ class OrderAIMerchCoreAdapter:
     @staticmethod
     def module_manifest() -> dict[str, Any]:
         return {
-            "module_key": MODULE_KEY,
-            "module_version": MODULE_VERSION,
-            "display_name": _DISPLAY_NAMES,
-            "supported_locales": list(SUPPORTED_LOCALES),
+            "moduleKey": MODULE_KEY,
+            "moduleVersion": MODULE_VERSION,
+            "displayName": _DISPLAY_NAMES,
+            "supportedLocales": list(SUPPORTED_LOCALES),
             "capabilities": [
                 "ai_order_parse",
                 "line_order_ingest",
@@ -38,7 +38,7 @@ class OrderAIMerchCoreAdapter:
                 "usage_status",
                 "plan_catalog",
             ],
-            "registration_endpoint": "/api/v1/module/orderai/registrations",
-            "health_endpoint": "/api/v1/module/orderai/health",
+            "registrationEndpoint": "/api/v1/module/orderai/registrations",
+            "healthEndpoint": "/api/v1/module/orderai/health",
             "status": "available",
         }

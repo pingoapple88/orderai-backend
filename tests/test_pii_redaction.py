@@ -5,6 +5,8 @@ import asyncio
 import pytest
 
 from app.providers import http_chat_llm
+from app.services import order_risk_service
+from app.services.order_risk_service import RiskDecision
 from app.services.pii_redaction import redact_pii
 
 
@@ -25,8 +27,8 @@ def test_redact_pii_five_locale_fixtures(locale, original, forbidden):
         assert raw not in redacted, locale
 
 
-def test_redact_pii_actual_llm_input_and_audit_safe_summary(monkeypatch):
-    original = PII_FIXTURES[0][1]
+@pytest.mark.parametrize("locale,original,forbidden", PII_FIXTURES)
+def test_redact_pii_actual_llm_input_for_five_locales(monkeypatch, locale, original, forbidden):
     redacted = redact_pii(original)
     captured = {}
 
@@ -52,7 +54,42 @@ def test_redact_pii_actual_llm_input_and_audit_safe_summary(monkeypatch):
 
     actual_llm_input = captured["payload"]["messages"][1]["content"][0]["text"]
     assert actual_llm_input == redacted
-    for raw in PII_FIXTURES[0][2]:
+    for raw in forbidden:
         assert raw not in actual_llm_input
     assert captured["payload"]["temperature"] == 0.2
     assert captured["max_retries"] == 2
+
+
+@pytest.mark.parametrize("locale,original,forbidden", PII_FIXTURES)
+def test_audit_uses_redact_before_hashing_for_five_locales(monkeypatch, locale, original, forbidden):
+    captured = []
+    calls = []
+    real_redact = redact_pii
+
+    class _Db:
+        def add(self, item):
+            captured.append(item)
+
+        def commit(self):
+            return None
+
+    def _track_redact(value):
+        calls.append(value)
+        return real_redact(value)
+
+    monkeypatch.setattr(order_risk_service, "redact_pii", _track_redact)
+    order_risk_service.audit_ai_decision(
+        _Db(),
+        principal={"user_id": 1, "store_id": 2},
+        extraction=None,
+        decision=RiskDecision(status="needs_review", reasons=["synthetic"], threshold=0.85),
+        source_text=original,
+    )
+
+    assert calls == [original], locale
+    stored = captured[0].new_value
+    assert set(stored) == {
+        "status", "reason_codes", "threshold", "confidence_score", "provider", "item_count", "source_sha256"
+    }
+    for raw in forbidden:
+        assert raw not in str(stored), locale

@@ -14,11 +14,11 @@ from app.services import module_service
 def test_manifest_has_five_locales_and_no_event_types_or_price():
     manifest = OrderAIMerchCoreAdapter.module_manifest()
 
-    assert manifest["module_key"] == "orderai"
-    assert set(manifest["supported_locales"]) == {"zh-TW", "en", "th", "ja", "id"}
+    assert manifest["moduleKey"] == "orderai"
+    assert set(manifest["supportedLocales"]) == {"zh-TW", "en", "th", "ja", "id"}
     assert "monthly_price" not in manifest
     assert "event_types" not in manifest
-    assert manifest["registration_endpoint"].startswith("/api/")
+    assert manifest["registrationEndpoint"].startswith("/api/")
 
 
 def test_registration_creates_service_state_and_redacted_audit_without_event(db_session):

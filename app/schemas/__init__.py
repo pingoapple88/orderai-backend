@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -143,12 +143,12 @@ class CommitRequest(CamelModel):
 
 # ── W2 Module self-service ──────────────────────────────────────────────────
 class ModuleRegistrationCreate(CamelModel):
-    company_name: str
-    store_name: str
-    channel: str
-    locale: str = "zh-TW"
-    idempotency_key: str
-    plan_name: Optional[str] = None
+    company_name: str = Field(min_length=1, max_length=120)
+    store_name: str = Field(min_length=1, max_length=120)
+    channel: Literal["direct", "dealer", "enterprise"]
+    locale: Literal["zh-TW", "en", "th", "ja", "id"] = "zh-TW"
+    idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
+    plan_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
 
 
 class ModulePlanOut(CamelModel):
@@ -164,7 +164,6 @@ class ModulePlanOut(CamelModel):
 
 class ModuleRegistrationOut(CamelModel):
     id: int
-    store_id: int
     module_key: str
     module_version: str
     channel: str

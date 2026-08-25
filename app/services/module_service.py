@@ -26,6 +26,10 @@ def register_self_service(
     plan_name: str | None = None,
 ) -> ModuleRegistration:
     """建立待啟用註冊；服務狀態只在 OrderAI 內保存，不產生生命週期事件。"""
+    company_name = company_name.strip()
+    store_name = store_name.strip()
+    if not company_name or not store_name:
+        raise HTTPException(status_code=422, detail="Company and store names cannot be blank")
     if channel not in {"direct", "dealer", "enterprise"}:
         raise HTTPException(status_code=422, detail="Unsupported channel")
     existing = db.execute(
@@ -44,11 +48,11 @@ def register_self_service(
         if plan is None:
             raise HTTPException(status_code=422, detail="Plan is unavailable for this channel")
 
-    company = Company(name=company_name.strip())
+    company = Company(name=company_name)
     db.add(company)
     db.flush()
     store = Store(
-        name=store_name.strip(),
+        name=store_name,
         company_id=company.id,
         store_key=_store_key(),
         plan=plan_name or "pending_activation",
