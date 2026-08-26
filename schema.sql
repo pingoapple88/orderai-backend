@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS stores (
   company_id INTEGER REFERENCES companies(id),            -- 0004：所屬母公司（可空）
   referred_by_dealer_id INTEGER REFERENCES dealers(id),   -- 0004：推薦經銷商（可空）
   plan VARCHAR(50) DEFAULT 'lite',                         -- 0004：方案
+  store_key VARCHAR(64) UNIQUE,                            -- W2：跨模組門店識別（非 URL Query 租戶來源）
   line_channel_id VARCHAR(64),                            -- 0004：LINE channel（secret 只在 ENV）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -104,6 +105,26 @@ CREATE INDEX IF NOT EXISTS idx_users_line_id ON users(line_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_plan_id ON users(plan_id);
 CREATE INDEX IF NOT EXISTS idx_users_store_id ON users(store_id);
+
+-- ============================================================================
+-- W2 模組自助註冊服務狀態（本輪不產生模組生命週期事件）
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS module_registrations (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  store_id INTEGER NOT NULL REFERENCES stores(id),
+  module_key VARCHAR(50) NOT NULL,
+  module_version VARCHAR(20) NOT NULL,
+  channel VARCHAR(20) NOT NULL CHECK (channel IN ('direct', 'dealer', 'enterprise')),
+  locale VARCHAR(10) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  idempotency_key VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_module_registration_idempotency UNIQUE (module_key, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_module_registrations_company_id ON module_registrations(company_id);
+CREATE INDEX IF NOT EXISTS idx_module_registrations_store_id ON module_registrations(store_id);
 
 -- ============================================================================
 -- 6. user_preferences 表（用戶偏好設定）

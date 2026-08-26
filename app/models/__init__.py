@@ -62,6 +62,7 @@ class Store(Base):
     company_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"))
     referred_by_dealer_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("dealers.id"))
     plan: Mapped[str] = mapped_column(Text, default="lite")
+    store_key: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
     line_channel_id: Mapped[Optional[str]] = mapped_column(Text)  # ※ secret 只在 Railway ENV，DB 不碰
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
@@ -244,6 +245,25 @@ class AuditLog(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+
+
+class ModuleRegistration(Base):
+    __tablename__ = "module_registrations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    module_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    module_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    locale: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("module_key", "idempotency_key", name="uq_module_registration_idempotency"),
+    )
 
 
 class Product(Base):

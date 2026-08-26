@@ -43,8 +43,20 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_api_base: str = ""
     llm_model: str = ""
+    llm_temperature: float = 0.0
     llm_timeout_seconds: int = 60
+    llm_max_retries: int = 0
     llm_allow_empty_api_key: bool = False
+
+    # W2：主 Provider 不可用時的備援設定。留空即不啟用備援，維持單一 Provider 行為。
+    llm_fallback_provider: str = ""
+    llm_fallback_api_key: str = ""
+    llm_fallback_api_base: str = ""
+    llm_fallback_model: str = ""
+    llm_fallback_temperature: float = 0.0
+    llm_fallback_timeout_seconds: int = 60
+    llm_fallback_max_retries: int = 0
+    llm_fallback_allow_empty_api_key: bool = False
 
     # AI 自動化（律八：信心閾值、fail-closed）
     ai_confidence_threshold: float = 0.85
