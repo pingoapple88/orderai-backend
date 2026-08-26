@@ -4,21 +4,21 @@ from __future__ import annotations
 from typing import Any
 
 
-SUPPORTED_LOCALES = ("zh-TW", "en", "th", "ja", "id")
+SUPPORTED_LOCALES = ("zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID")
 MODULE_KEY = "orderai"
 MODULE_VERSION = "1.8"
 
 _DISPLAY_NAMES = {
-    "zh-TW": "OrderAI 訂單解析服務",
-    "en": "OrderAI Order Parsing Service",
-    "th": "บริการวิเคราะห์คำสั่งซื้อ OrderAI",
-    "ja": "OrderAI 注文解析サービス",
-    "id": "Layanan Analisis Pesanan OrderAI",
+    "zh-Hant-TW": "OrderAI 訂單解析服務",
+    "en-US": "OrderAI Order Parsing Service",
+    "th-TH": "บริการวิเคราะห์คำสั่งซื้อ OrderAI",
+    "ja-JP": "OrderAI 注文解析サービス",
+    "id-ID": "Layanan Analisis Pesanan OrderAI",
 }
 
 
 def normalize_locale(locale: str | None) -> str:
-    return locale if locale in SUPPORTED_LOCALES else "zh-TW"
+    return locale if locale in SUPPORTED_LOCALES else "zh-Hant-TW"
 
 
 class OrderAIMerchCoreAdapter:

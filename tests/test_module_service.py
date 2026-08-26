@@ -15,7 +15,7 @@ def test_manifest_has_five_locales_and_no_event_types_or_price():
     manifest = OrderAIMerchCoreAdapter.module_manifest()
 
     assert manifest["moduleKey"] == "orderai"
-    assert set(manifest["supportedLocales"]) == {"zh-TW", "en", "th", "ja", "id"}
+    assert set(manifest["supportedLocales"]) == {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
     assert "monthly_price" not in manifest
     assert "event_types" not in manifest
     assert manifest["registrationEndpoint"].startswith("/api/")
@@ -33,7 +33,7 @@ def test_registration_creates_service_state_and_redacted_audit_without_event(db_
 
     store = db_session.get(Store, registration.store_id)
     audit = db_session.execute(select(AuditLog)).scalar_one()
-    assert registration.locale == "zh-TW"
+    assert registration.locale == "zh-Hant-TW"
     assert registration.status == "pending_activation"
     assert store.store_key.startswith("ord_")
     assert "Synthetic Company" not in json.dumps(audit.new_value, ensure_ascii=False)
@@ -47,7 +47,7 @@ def test_registration_is_idempotent_and_does_not_create_event(db_session):
         company_name="Synthetic Company",
         store_name="Synthetic Store",
         channel="dealer",
-        locale="en",
+        locale="en-US",
         idempotency_key="module-registration-002",
     )
     second = module_service.register_self_service(
@@ -55,7 +55,7 @@ def test_registration_is_idempotent_and_does_not_create_event(db_session):
         company_name="Ignored On Retry",
         store_name="Ignored On Retry",
         channel="dealer",
-        locale="en",
+        locale="en-US",
         idempotency_key="module-registration-002",
     )
 
@@ -70,7 +70,7 @@ def test_registration_does_not_require_event_registry_settings(db_session):
         company_name="Synthetic Company",
         store_name="Synthetic Store",
         channel="direct",
-        locale="zh-TW",
+        locale="zh-Hant-TW",
         idempotency_key="module-registration-no-event-registry",
     )
     assert registration.status == "pending_activation"
@@ -98,7 +98,7 @@ def test_status_uses_principal_store_scope(db_session):
         company_name="Synthetic Company",
         store_name="Synthetic Store",
         channel="enterprise",
-        locale="ja",
+        locale="ja-JP",
         idempotency_key="module-registration-004",
     )
     plan = Plan(name="pending_activation", channel="enterprise", monthly_price=0, ai_extraction_limit=100)

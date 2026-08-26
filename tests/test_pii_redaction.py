@@ -11,11 +11,11 @@ from app.services.pii_redaction import redact_pii
 
 
 PII_FIXTURES = [
-    ("zh-TW", "我是王小明，電話 0912-345-678，信箱 wang@example.com，身分證 A123456789，蘋果 2 顆", ["王小明", "0912-345-678", "wang@example.com", "A123456789"]),
-    ("en", "My name is Alice Smith, phone +1 415 555 1212, email alice@example.com, apples 2", ["Alice Smith", "+1 415 555 1212", "alice@example.com"]),
-    ("th", "ชื่ิอ สมชาย ใจดี โทร +66 81 234 5678 อีเมล somchai@example.com แอปเปิล 2", ["สมชาย ใจดี", "+66 81 234 5678", "somchai@example.com"]),
-    ("ja", "名前：山田太郎 電話 +81 90 1234 5678 メール yamada@example.com りんご 2", ["山田太郎", "+81 90 1234 5678", "yamada@example.com"]),
-    ("id", "Nama: Budi Santoso, telepon +62 812 3456 7890, email budi@example.com, apel 2", ["Budi Santoso", "+62 812 3456 7890", "budi@example.com"]),
+    ("zh-Hant-TW", "我是王小明，電話 0912-345-678，信箱 wang@example.com，身分證 A123456789，蘋果 2 顆", ["王小明", "0912-345-678", "wang@example.com", "A123456789"]),
+    ("en-US", "My name is Alice Smith, phone +1 415 555 1212, email alice@example.com, apples 2", ["Alice Smith", "+1 415 555 1212", "alice@example.com"]),
+    ("th-TH", "ชื่ิอ สมชาย ใจดี โทร +66 81 234 5678 อีเมล somchai@example.com แอปเปิล 2", ["สมชาย ใจดี", "+66 81 234 5678", "somchai@example.com"]),
+    ("ja-JP", "名前：山田太郎 電話 +81 90 1234 5678 メール yamada@example.com りんご 2", ["山田太郎", "+81 90 1234 5678", "yamada@example.com"]),
+    ("id-ID", "Nama: Budi Santoso, telepon +62 812 3456 7890, email budi@example.com, apel 2", ["Budi Santoso", "+62 812 3456 7890", "budi@example.com"]),
 ]
 
 

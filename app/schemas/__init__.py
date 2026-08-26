@@ -146,7 +146,7 @@ class ModuleRegistrationCreate(CamelModel):
     company_name: str = Field(min_length=1, max_length=120)
     store_name: str = Field(min_length=1, max_length=120)
     channel: Literal["direct", "dealer", "enterprise"]
-    locale: Literal["zh-TW", "en", "th", "ja", "id"] = "zh-TW"
+    locale: Literal["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"] = "zh-Hant-TW"
     idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
     plan_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
 

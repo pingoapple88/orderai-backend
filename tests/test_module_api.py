@@ -40,7 +40,7 @@ def _payload(**overrides: str) -> dict[str, str]:
         "companyName": f"{_MARK}Company",
         "storeName": f"{_MARK}Store",
         "channel": "direct",
-        "locale": "zh-TW",
+        "locale": "zh-Hant-TW",
         "idempotencyKey": f"module-api-{uuid.uuid4().hex}",
     }
     payload.update(overrides)
@@ -53,7 +53,7 @@ def test_public_manifest_has_no_lifecycle_event_advertisement():
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert set(data["supportedLocales"]) == {"zh-TW", "en", "th", "ja", "id"}
+    assert set(data["supportedLocales"]) == {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
     assert "eventTypes" not in data
     assert "monthlyPrice" not in data
 
