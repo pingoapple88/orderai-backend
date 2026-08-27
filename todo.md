@@ -1,3 +1,7 @@
 - [ ] **Inherited Auth baseline blocker**：`tests/test_auth_callback.py::test_line_callback_creates_user_and_store` 仍未先建立 OAuth state cookie 即直接呼叫 callback；本功能分支不得修改、帶入、squash、cherry-pick 或手動複製此修正。
 - [ ] **Auth owner action**：僅由獨立 PR `fix/oauth-state-test-fixture` 進行 review 與合併至 main。
 - [ ] **Post-Auth staging validation**：待 Auth PR 合併後，以新的 main 完整 SHA 建立新的 staging 驗證分支，重跑完整 `pytest -q`、compileall、diff check 與受控環境驗證。
+- [x] **T5 Demo screen contract**：已建立 `docs/demo_orderai_ui_contract.md`，提供 T1 可直接採用的五語系畫面狀態與最小公開資料契約。
+- [x] **T5 synthetic workflow fixture**：已建立 `tests/fixtures/demo_orderai.json`，涵蓋成功、malformed、0.84 覆核、0.86 通過、Provider error／timeout、retry、dead-letter 與 PII 遮蔽。
+- [x] **T5 Demo contract tests**：已新增只讀取 fixture 的驗證，確認無真實 PII、價格、外部 URL、OAuth、付款或正式服務設定。
+- [ ] **T5 Demo delivery**：contract tests、compile、diff、外連／秘密／影子掃描均已完成；待 commit、push 並回報給 T1。既有登入安全修正維持完全隔離。

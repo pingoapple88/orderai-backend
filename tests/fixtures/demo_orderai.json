@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "version": "DEMO-UI-W2-01",
+    "productName": "OrderAI",
+    "demoOnly": true,
+    "dataClassification": "synthetic",
+    "defaultLocale": "zh-Hant-TW",
+    "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+    "integrationStatus": "demo_mock"
+  },
+  "localeLabels": {
+    "zh-Hant-TW": {"demoBadge": "Demo／合成資料", "parseAction": "模擬解析", "retryAction": "模擬重試", "backAction": "返回功能總覽", "needsReview": "需要人工確認", "deadLetter": "待人工處理"},
+    "en-US": {"demoBadge": "Demo / Synthetic data", "parseAction": "Simulate parse", "retryAction": "Simulate retry", "backAction": "Back to feature hub", "needsReview": "Needs review", "deadLetter": "Needs manual handling"},
+    "th-TH": {"demoBadge": "เดโม / ข้อมูลสังเคราะห์", "parseAction": "จำลองการวิเคราะห์", "retryAction": "จำลองการลองใหม่", "backAction": "กลับหน้ารวมฟังก์ชัน", "needsReview": "ต้องตรวจสอบ", "deadLetter": "ต้องดำเนินการด้วยตนเอง"},
+    "ja-JP": {"demoBadge": "デモ／合成データ", "parseAction": "解析をシミュレーション", "retryAction": "再試行をシミュレーション", "backAction": "機能一覧に戻る", "needsReview": "要確認", "deadLetter": "手動対応待ち"},
+    "id-ID": {"demoBadge": "Demo / Data sintetis", "parseAction": "Simulasikan analisis", "retryAction": "Simulasikan coba lagi", "backAction": "Kembali ke pusat fitur", "needsReview": "Perlu peninjauan", "deadLetter": "Perlu penanganan manual"}
+  },
+  "scenarios": [
+    {
+      "id": "parse-success-086",
+      "title": "完整商品與證據的解析成功",
+      "state": "success",
+      "input": {"rawText": "【合成】春茶 2 罐；米餅 1 包", "locale": "zh-Hant-TW"},
+      "result": {"items": [{"productName": "春茶", "quantity": 2, "evidence": "完整", "catalogStatus": "matched", "confidence": 0.86}, {"productName": "米餅", "quantity": 1, "evidence": "完整", "catalogStatus": "matched", "confidence": 0.86}], "overallConfidence": 0.86},
+      "risk": {"status": "approved", "riskScore": 0.86, "reasonCodes": []},
+      "queue": {"state": "queued", "retryable": false, "nextScenarioId": null, "displayCode": "DEMO-Q-086"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"lineEventHash": "demo_hash_086", "messageText": "【合成】春茶 2 罐；米餅 1 包"}, "notice": "Queue payload 為 Demo mock，未接入外部 Queue。"}
+    },
+    {
+      "id": "malformed-input",
+      "title": "格式無法安全辨識",
+      "state": "error",
+      "input": {"rawText": "【合成】<<<無法辨識的結構>>> ", "locale": "zh-Hant-TW"},
+      "result": {"items": [], "overallConfidence": null},
+      "risk": {"status": "needs_review", "riskScore": null, "reasonCodes": ["malformed_input"]},
+      "queue": {"state": "blocked", "retryable": false, "nextScenarioId": null, "displayCode": "DEMO-Q-BLOCKED"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"messageText": "【合成】<<<無法辨識的結構>>>"}, "notice": "不安全解析不會建立 Demo order。"}
+    },
+    {
+      "id": "risk-needs-review-084",
+      "title": "低於閾值的人工確認",
+      "state": "needs_review",
+      "input": {"rawText": "【合成】春茶大約兩份", "locale": "zh-Hant-TW"},
+      "result": {"items": [{"productName": "春茶", "quantity": 2, "evidence": "部分", "catalogStatus": "matched", "confidence": 0.84}], "overallConfidence": 0.84},
+      "risk": {"status": "needs_review", "riskScore": 0.84, "reasonCodes": ["low_confidence"]},
+      "queue": {"state": "not_queued", "retryable": false, "nextScenarioId": null, "displayCode": "DEMO-Q-REVIEW"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"messageText": "【合成】春茶大約兩份"}, "notice": "低信心結果需要人工確認。"}
+    },
+    {
+      "id": "provider-error",
+      "title": "可重試的 Provider error",
+      "state": "error",
+      "input": {"rawText": "【合成】米餅 3 包", "locale": "en-US"},
+      "result": {"items": [], "overallConfidence": null},
+      "risk": {"status": "needs_review", "riskScore": null, "reasonCodes": ["provider_error"]},
+      "queue": {"state": "retrying", "retryable": true, "nextScenarioId": "parse-success-086", "displayCode": "DEMO-Q-RETRY-ERROR"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"lineEventHash": "demo_hash_retry_error", "messageText": "【合成】米餅 3 包"}, "notice": "這是前端重試模擬，不會呼叫 Provider。"}
+    },
+    {
+      "id": "provider-timeout",
+      "title": "可重試的 Provider timeout",
+      "state": "retrying",
+      "input": {"rawText": "【合成】春茶 1 罐", "locale": "th-TH"},
+      "result": {"items": [], "overallConfidence": null},
+      "risk": {"status": "needs_review", "riskScore": null, "reasonCodes": ["provider_timeout"]},
+      "queue": {"state": "retrying", "retryable": true, "nextScenarioId": "provider-timeout-dead-letter", "displayCode": "DEMO-Q-RETRY-TIMEOUT"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"lineEventHash": "demo_hash_timeout", "messageText": "【合成】春茶 1 罐"}, "notice": "Timeout 只顯示有限重試的 Demo 狀態。"}
+    },
+    {
+      "id": "provider-timeout-dead-letter",
+      "title": "有限重試耗盡",
+      "state": "blocked",
+      "input": {"rawText": "【合成】春茶 1 罐", "locale": "ja-JP"},
+      "result": {"items": [], "overallConfidence": null},
+      "risk": {"status": "blocked", "riskScore": null, "reasonCodes": ["provider_timeout", "retry_exhausted"]},
+      "queue": {"state": "dead_letter", "retryable": false, "nextScenarioId": null, "displayCode": "DEMO-Q-DEAD-LETTER"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"lineEventHash": "demo_hash_dead_letter", "messageText": "【合成】春茶 1 罐"}, "notice": "Dead-letter 需要人工處理，不會建立 Demo order。"}
+    },
+    {
+      "id": "pii-redacted-payload",
+      "title": "已遮蔽識別資料的 Queue payload",
+      "state": "needs_review",
+      "input": {"rawText": "【合成】姓名與聯絡欄位已遮蔽；春茶 2 罐", "locale": "id-ID"},
+      "result": {"items": [{"productName": "春茶", "quantity": 2, "evidence": "完整", "catalogStatus": "matched", "confidence": 0.86}], "overallConfidence": 0.86},
+      "risk": {"status": "needs_review", "riskScore": 0.86, "reasonCodes": ["pii_redacted_payload"]},
+      "queue": {"state": "queued", "retryable": false, "nextScenarioId": null, "displayCode": "DEMO-Q-REDACTED"},
+      "privacy": {"payloadClassification": "redacted", "payloadPreview": {"lineEventHash": "demo_hash_redacted", "lineUserHash": "demo_user_hash", "messageText": "【REDACTED_NAME】；春茶 2 罐"}, "notice": "畫面只顯示已遮蔽 payload，沒有原始識別資料。"}
+    },
+    {
+      "id": "empty-state",
+      "title": "尚未選取可解析品項",
+      "state": "empty",
+      "input": {"rawText": "", "locale": "zh-Hant-TW"},
+      "result": {"items": [], "overallConfidence": null},
+      "risk": {"status": "blocked", "riskScore": null, "reasonCodes": ["empty_input"]},
+      "queue": {"state": "not_queued", "retryable": false, "nextScenarioId": null, "displayCode": "DEMO-Q-EMPTY"},
+      "privacy": {"payloadClassification": "not_queued", "payloadPreview": {}, "notice": "尚未入列，請選擇一個合成情境。"}
+    }
+  ]
+}
