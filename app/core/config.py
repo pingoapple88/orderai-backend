@@ -71,13 +71,15 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     queue_backend: str = "redis"          # redis | memory（測試/開發）
     queue_name: str = "line_webhook"
+    queue_dedup_ttl_seconds: int = 86400
+    queue_max_retries: int = 2
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
     stallpay_api_key: str = ""
 
     # i18n
-    default_lang: str = "zh-TW"
+    default_lang: str = "zh-Hant-TW"
 
     @property
     def allowed_origins_list(self) -> list:

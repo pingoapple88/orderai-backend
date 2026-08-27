@@ -1,0 +1,16 @@
+T5 Next Stage — Synthetic LINE Queue Workflow Evidence
+Environment: signed synthetic webhook bodies, InMemoryQueue, mock LLM and notification providers.
+
+Verified contract:
+- invalid signature returns 401 and does not enqueue.
+- valid signed webhook enqueues only de-identified, single-event envelopes.
+- raw user identifier and reply token do not enter the queue; line event and user values are represented by hashes.
+- raw source text is processed by redact_pii before enqueue and again at the Worker-to-Provider boundary.
+- duplicate line event is accepted at HTTP level but not queued twice.
+- provider timeout yields retryable needs_review with no order; retry metadata is copied rather than mutating the prior envelope.
+- QUEUE_MAX_RETRIES limits retry; after the limit the safe envelope enters dead-letter with reason code.
+- needs_review never creates an order.
+
+Executed command summary:
+pytest -q tests/test_webhook_signature.py tests/test_webhook_fast.py tests/test_queue_contract.py tests/test_line_worker.py tests/test_worker_logic.py tests/test_batches.py tests/test_pii_redaction.py tests/test_i18n_contract.py
+Result: 57 passed, 19 warnings, exit 0.

@@ -149,6 +149,7 @@ class ModuleRegistrationCreate(CamelModel):
     locale: Literal["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"] = "zh-Hant-TW"
     idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
     plan_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    referral_source: Optional[str] = Field(default=None, min_length=1, max_length=120, pattern=r"^[A-Za-z0-9._:-]+$")
 
 
 class ModulePlanOut(CamelModel):
@@ -163,7 +164,6 @@ class ModulePlanOut(CamelModel):
 
 
 class ModuleRegistrationOut(CamelModel):
-    id: int
     module_key: str
     module_version: str
     channel: str
@@ -172,7 +172,6 @@ class ModuleRegistrationOut(CamelModel):
 
 
 class ModuleStatusOut(CamelModel):
-    store_key: Optional[str] = None
     plan_name: Optional[str] = None
     channel: Optional[str] = None
     ai_usage_count: int

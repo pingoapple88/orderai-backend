@@ -1,0 +1,13 @@
+T5 Next Stage — Test Summary
+
+Targeted parse/risk/Provider/Worker suite: 60 passed, 9 warnings, exit 0.
+Module API and service suite: 14 passed, 3 warnings, exit 0.
+Queue/webhook/Worker/batch/PII/i18n suite: 57 passed, 19 warnings, exit 0.
+Required focused staging suite: 90 passed, 21 warnings, exit 0.
+Full pytest: 137 passed, 1 failed, 29 warnings, exit 1.
+Compileall: exit 0.
+Diff check: exit 0.
+
+Current classification: FEATURE_READY_FOR_INTEGRATION_PENDING_AUTH_BASELINE.
+Staging classification: NOT FEATURE_READY_FOR_STAGING.
+Reason: the full-suite OAuth callback test remains a known, unmodified baseline failure. It is outside this branch by explicit work-order boundary, so this branch must not include the excluded OAuth test-only change merely to produce a green full suite. The Repo owner authorized commit and push of this functionality branch only; after the independent Auth fix is reviewed and merged to main, recreate a staging validation branch from the new main SHA and rerun the full gate.

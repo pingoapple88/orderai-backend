@@ -41,6 +41,7 @@ def create_registration(payload: ModuleRegistrationCreate, db: Session = Depends
         locale=payload.locale,
         idempotency_key=payload.idempotency_key,
         plan_name=payload.plan_name,
+        referral_source=payload.referral_source,
     )
     return success_response(ModuleRegistrationOut.model_validate(registration).model_dump(by_alias=True))
 

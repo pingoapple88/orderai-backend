@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 import json
-import unicodedata
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Optional
+
+from app.services.parse_normalizer import normalize_product_key, normalize_quantity
 
 
 @dataclass(frozen=True)
@@ -24,11 +25,12 @@ class ParseMetrics:
 
 
 def _normalize_name(value: object) -> str:
-    return "".join(unicodedata.normalize("NFKC", str(value or "")).lower().split())
+    return normalize_product_key(value)
 
 
-def _item_key(item: dict) -> tuple[str, int]:
-    return _normalize_name(item.get("product_name")), int(item.get("quantity") or 0)
+def _item_key(item: dict) -> tuple[str, Optional[int]]:
+    """以安全 quantity 正規化取代直接 int()，無效輸入不會讓評測中斷。"""
+    return _normalize_name(item.get("product_name")), normalize_quantity(item.get("quantity")).value
 
 
 def evaluate_records(records: Iterable[dict]) -> ParseMetrics:
@@ -66,7 +68,17 @@ def evaluate_records(records: Iterable[dict]) -> ParseMetrics:
 
 def evaluate_jsonl(path: Path) -> ParseMetrics:
     with path.open("r", encoding="utf-8") as source:
-        records = [json.loads(line) for line in source if line.strip()]
+        records = []
+        for line_number, line in enumerate(source, start=1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid_jsonl_line:{line_number}") from exc
+            if not isinstance(record, dict):
+                raise ValueError(f"invalid_jsonl_record:{line_number}")
+            records.append(record)
     return evaluate_records(records)
 
 

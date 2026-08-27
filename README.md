@@ -44,9 +44,15 @@ pytest
 
 業務流程僅依賴 `ILLMProvider`，模型協定由 `LLM_PROVIDER` 選擇。`http_chat`、`ollama` 與 `anthropic` 均以 HTTP Adapter 封裝；端點、模型名稱、API Key、逾時與其他外部設定必須由部署環境注入，缺少必要設定時會拒絕解析而不建立訂單。
 
-解析結果只有同時符合下列條件才會自動建立 `pending_confirm` 訂單：整體與每個商品列的信心分數皆不低於 `AI_CONFIDENCE_THRESHOLD`、每列保留原文證據、數量在設定範圍內，以及所有商品均精確命中該店有效型錄。任一條件未通過時，Worker 會轉人工確認，並在 `audit_logs` 記錄決策代碼、模型識別、信心、門檻與原文 SHA-256；原始 LINE 訊息與電話不會寫入稽核 JSON。
+解析結果只有同時符合下列條件才會自動建立 `pending_confirm` 訂單：整體與每個商品列的信心分數皆不低於 `AI_CONFIDENCE_THRESHOLD`、每列保留原文證據、數量在設定範圍內、所有商品均精確命中該店有效型錄，且型錄價格為非負整數分位。任一條件未通過時，Worker 會轉人工確認，並在 `audit_logs` 記錄決策代碼、模型識別、信心、門檻與去識別化原文 SHA-256；原始 LINE 訊息、姓名、電話與 email 不會寫入稽核 JSON。
 
-`plans` 使用 `channel` 區分 `direct`、`dealer`、`enterprise`。同名方案可依通路分別定價；實際價格、推廣來源與經銷服務費規則仍由產品與訂閱流程負責。
+`plans` 使用 `channel` 區分 `direct`、`dealer`、`enterprise`。`dealer` 註冊必須提供符合格式的推薦來源；自助註冊的冪等鍵僅在同一個正規化公司名稱範圍內重複使用，儲存時以雜湊保護。公開註冊與狀態回應不提供 company、store、註冊或訂閱的內部識別值。
+
+## LINE Queue 與五語系契約
+
+Webhook 在驗章成功後，僅將單一事件的必要去識別化識別值與已遮蔽文字送進 `IQueue`。`QUEUE_DEDUP_TTL_SECONDS` 控制事件去重存留時間，`QUEUE_MAX_RETRIES` 控制 Provider error／timeout 的有限重試次數；達上限後交由 Queue adapter 的 dead-letter 路徑保留人工確認訊號，不自動建立訂單。
+
+正式 locale 僅可使用 `zh-Hant-TW`、`en-US`、`th-TH`、`ja-JP`、`id-ID`。`DEFAULT_LANG`、Module manifest、API schema 與 i18n 訊息表均採用相同代碼；未支援代碼只會回退到 `zh-Hant-TW` 的訊息，不會建立不同 locale 的服務狀態。
 
 ## 解析準確率評測
 

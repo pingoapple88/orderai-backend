@@ -3,7 +3,6 @@
 match_product 是本單核心：抄單抽取的每個品名 → 找店家型錄的價格。
 先命中即回，未命中回 None。**不做模糊比對、不猜**——猜錯的價格比沒有價格更糟。
 """
-import unicodedata
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -11,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog, Product
+from app.services.parse_normalizer import normalize_product_key
 
 
 class ProductNameDuplicate(Exception):
@@ -32,9 +32,7 @@ def _normalize(s: str) -> str:
 
     NFKC 把全形字元與全形空格(U+3000)一併轉半形，故「高　麗　菜」→「高麗菜」。
     """
-    s = unicodedata.normalize("NFKC", s)
-    s = "".join(s.split())          # 去所有空白（NFKC 後全形空格已成半形空格）
-    return s.lower()
+    return normalize_product_key(s)
 
 
 # ── CRUD ────────────────────────────────────────────────────────────────────

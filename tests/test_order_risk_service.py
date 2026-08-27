@@ -66,6 +66,20 @@ def test_low_confidence_requires_human_review(db_session):
     assert "confidence_below_threshold" in decision.reasons
 
 
+def test_threshold_boundary_085_is_approved_by_existing_inclusive_rule(db_session):
+    """工單要求等值不得含糊；現有規則為 confidence < threshold 才拒絕。"""
+    store, _ = _seed(db_session)
+    result = _result(confidence=0.85)
+    priced = product_service.price_extracted_items(db_session, store.id, result.items)
+
+    decision = order_risk_service.evaluate_order_extraction(
+        db_session, result, priced, default_threshold=0.85
+    )
+
+    assert decision.status == "approved"
+    assert decision.reasons == []
+
+
 def test_threshold_boundary_086_is_approved(db_session):
     store, _ = _seed(db_session)
     result = _result(confidence=0.86)
@@ -77,6 +91,42 @@ def test_threshold_boundary_086_is_approved(db_session):
 
     assert decision.status == "approved"
     assert decision.reasons == []
+
+
+def test_catalog_price_missing_requires_human_review(db_session):
+    store, _ = _seed(db_session)
+    result = _result()
+    priced = [{
+        "product_name": "高麗菜",
+        "quantity": 2,
+        "matched_product_id": 1,
+        "unit_price_cents": None,
+    }]
+
+    decision = order_risk_service.evaluate_order_extraction(
+        db_session, result, priced, default_threshold=0.85
+    )
+
+    assert decision.status == "needs_review"
+    assert "catalog_price_missing" in decision.reasons
+
+
+def test_catalog_float_price_requires_human_review(db_session):
+    store, _ = _seed(db_session)
+    result = _result()
+    priced = [{
+        "product_name": "高麗菜",
+        "quantity": 2,
+        "matched_product_id": 1,
+        "unit_price_cents": 45.0,
+    }]
+
+    decision = order_risk_service.evaluate_order_extraction(
+        db_session, result, priced, default_threshold=0.85
+    )
+
+    assert decision.status == "needs_review"
+    assert "catalog_price_invalid" in decision.reasons
 
 
 def test_audit_log_contains_hash_not_original_line_content(db_session):

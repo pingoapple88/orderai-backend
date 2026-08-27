@@ -1,0 +1,14 @@
+T5 Next Stage — Risk Gate and Provider Failover Evidence
+
+Decision contract fixed by tests:
+- 0.84 is needs_review.
+- 0.85 is approved when all item-level confidence, catalog, quantity, evidence and integer-cent checks pass. This follows the explicit existing condition confidence < threshold.
+- 0.86 is approved only when the same full checks pass.
+- missing catalog match, missing catalog price, non-integer/invalid catalog cents, unsafe quantity and missing evidence are needs_review.
+- provider exception maps to provider_error; timeout maps to provider_timeout; both create no order.
+- primary failure can use only ILLMProvider failover; all-provider failure remains fail-closed.
+
+Executed command summary:
+pytest -q tests/test_order_risk_service.py tests/test_llm_failover.py tests/test_parse_normalizer.py tests/test_line_worker.py
+Result: 34 passed, exit 0.
+Later combined targeted suite: 60 passed, 9 warnings, exit 0.

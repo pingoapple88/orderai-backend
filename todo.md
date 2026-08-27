@@ -1,0 +1,3 @@
+- [ ] **Inherited Auth baseline blocker**：`tests/test_auth_callback.py::test_line_callback_creates_user_and_store` 仍未先建立 OAuth state cookie 即直接呼叫 callback；本功能分支不得修改、帶入、squash、cherry-pick 或手動複製此修正。
+- [ ] **Auth owner action**：僅由獨立 PR `fix/oauth-state-test-fixture` 進行 review 與合併至 main。
+- [ ] **Post-Auth staging validation**：待 Auth PR 合併後，以新的 main 完整 SHA 建立新的 staging 驗證分支，重跑完整 `pytest -q`、compileall、diff check 與受控環境驗證。

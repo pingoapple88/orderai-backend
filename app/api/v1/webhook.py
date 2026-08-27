@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request, Response
 from app.core.config import get_settings
 from app.core.security import verify_line_signature
 from app.providers import get_queue
+from app.services.queue_payload import build_line_queue_envelope
 
 router = APIRouter()
 settings = get_settings()
@@ -31,6 +32,14 @@ async def line_webhook(request: Request) -> Response:
         payload = json.loads(body)
     except Exception:
         return Response(status_code=400)
+    if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
+        return Response(status_code=400)
 
-    get_queue().enqueue(payload)
+    queue = get_queue()
+    for event in payload["events"]:
+        envelope = build_line_queue_envelope(event)
+        if envelope is None:
+            continue
+        safe_payload, dedupe_key = envelope
+        queue.enqueue_unique(safe_payload, dedupe_key=dedupe_key)
     return Response(status_code=200)

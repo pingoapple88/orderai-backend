@@ -1,0 +1,24 @@
+T5 Next Stage — Staging Precheck Log
+Environment: synthetic fixtures, mock Providers, InMemoryQueue and disposable local database only.
+
+FOCUSED SUITE
+Command: pytest -q tests/test_parse_evaluation.py tests/test_prefilter.py tests/test_order_risk_service.py tests/test_llm_failover.py tests/test_pii_redaction.py tests/test_module_api.py tests/test_module_service.py tests/test_line_worker.py tests/test_worker_logic.py tests/test_queue_contract.py tests/test_webhook_signature.py tests/test_webhook_fast.py tests/test_i18n_contract.py tests/test_batches.py
+Result: 90 passed, 21 warnings in 5.72s
+FOCUSED_EXIT=0
+
+FULL SUITE
+Command: pytest -q
+Result: 137 passed, 1 failed, 29 warnings in 6.22s
+FULL_EXIT=1
+Failure: tests/test_auth_callback.py::test_line_callback_creates_user_and_store
+Observed response: 400 Invalid state because the test calls callback with code only and does not first establish its state cookie.
+Boundary confirmation: git diff --name-only 3131a2cb752efb713fe4b0e50e0d6f7fe9b5e3f6 -- tests/test_auth_callback.py produced no output.
+Disposition: inherited baseline blocker. This test belongs to the explicitly excluded OAuth test-only change and was not modified or included. Repo owner authorized this functionality branch to commit and push for integration only; a staging validation branch must be recreated from the new main SHA after the independent Auth fix is reviewed and merged.
+
+COMPILE
+Command: python3 -m compileall -q app tests alembic
+COMPILEALL_EXIT=0
+
+DIFF CHECK
+Command: git diff --check
+DIFF_CHECK_EXIT=0

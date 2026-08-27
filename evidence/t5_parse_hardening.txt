@@ -1,0 +1,16 @@
+T5 Next Stage — Parse Hardening Evidence
+Environment: synthetic inputs; disposable local test database; mock Providers only.
+
+Implemented checks:
+- malformed JSONL returns classified invalid_jsonl_line:<line> or invalid_jsonl_record:<line>.
+- item quantity accepts only positive integers or NFKC-normalized positive integer strings.
+- bool, float (including 1.0), decimals, zero, negatives and missing quantity become invalid/None.
+- product match keys share NFKC, whitespace removal and casefold between evaluation and catalog lookup.
+- malformed Provider payloads become empty, 0-confidence results for risk-gate review.
+- unknown Provider fields and model price fields are not mapped to public/order item values.
+
+Executed command summary:
+pytest -q tests/test_ai_service.py tests/test_parse_evaluation.py tests/test_parse_normalizer.py tests/test_order_risk_service.py tests/test_llm_failover.py tests/test_worker_logic.py tests/test_line_worker.py tests/test_products.py
+Result: 60 passed, 9 warnings, exit 0.
+python3 -m compileall -q app tests alembic: exit 0.
+git diff --check: exit 0.

@@ -59,6 +59,14 @@ def evaluate_order_extraction(
             reasons.append("item_confidence_below_threshold")
         if index >= len(priced) or priced[index].get("matched_product_id") is None:
             reasons.append("catalog_product_unmatched")
+        elif priced[index].get("unit_price_cents") is None:
+            reasons.append("catalog_price_missing")
+        elif (
+            isinstance(priced[index].get("unit_price_cents"), bool)
+            or not isinstance(priced[index].get("unit_price_cents"), int)
+            or priced[index]["unit_price_cents"] < 0
+        ):
+            reasons.append("catalog_price_invalid")
 
     unique_reasons = sorted(set(reasons))
     return RiskDecision(

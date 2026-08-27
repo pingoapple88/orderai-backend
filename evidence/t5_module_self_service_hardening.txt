@@ -1,0 +1,18 @@
+T5 Next Stage — Module Self-Service Evidence
+Environment: synthetic company/store names; disposable local test database.
+
+Implemented contract:
+- registration accepts only direct, dealer or enterprise channel.
+- service and API accept only zh-Hant-TW, en-US, th-TH, ja-JP, id-ID.
+- dealer registration requires a non-empty, format-checked referral source.
+- idempotency is stored as a company-scoped SHA-256 namespace key; no raw client key is persisted.
+- identical company/key retries return the original registration; identical client keys from distinct companies create separate registrations.
+- protected status derives scope from the server-side principal and rejects a mismatched store.
+- Option B persists pending_activation plus de-identified audit information only; no lifecycle event is introduced.
+- registration/status responses omit company, store and registration internal identifiers.
+
+Executed command summary:
+pytest -q tests/test_module_api.py tests/test_module_service.py
+Result: 14 passed, 3 warnings, exit 0.
+python3 -m compileall -q app tests alembic: exit 0.
+git diff --check: exit 0.

@@ -10,8 +10,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.interfaces.llm_provider import ExtractionResult
 from app.models import AuditLog, Order, OrderBatch, OrderCommit, OrderItem
-from app.services import product_service
+from app.services import order_risk_service, product_service
+from app.services.pii_redaction import redact_pii
 
 _REVIEW_CONFIDENCE = 0.85
 
@@ -29,6 +31,13 @@ class PriceRequired(Exception):
     def __init__(self, line_nos: list):
         self.line_nos = line_nos
         super().__init__(f"price required for lines: {line_nos}")
+
+
+class BatchLineInvalid(Exception):
+    """手動確認資料不符合整數 quantity／minor unit 契約。"""
+    def __init__(self, line_nos: list):
+        self.line_nos = line_nos
+        super().__init__(f"invalid batch lines: {line_nos}")
 
 
 def _audit(db: Session, principal: dict, action: str, resource_id: Optional[int], new=None) -> None:
@@ -97,7 +106,8 @@ async def parse_batch(db: Session, store_id: int, batch: OrderBatch, raw_text: s
     for idx, raw_line in enumerate(source_lines, start=1):
         if not raw_line.strip():
             continue
-        result = await llm.extract_order(text=raw_line, industry_type=industry_type)
+        safe_raw_line = redact_pii(raw_line)
+        result = await llm.extract_order(text=safe_raw_line, industry_type=industry_type)
         items = result.items or []
         # 無品項（閒聊/貼圖佔位/已轉帳等）→ 不產生 line
         for j, it in enumerate(items):
@@ -106,23 +116,36 @@ async def parse_batch(db: Session, store_id: int, batch: OrderBatch, raw_text: s
             qty = it.quantity
             matched_id = matched.id if matched else None
             unit_price = matched.price_cents if matched else None
-            needs_review = (
-                result.confidence_score < _REVIEW_CONFIDENCE
-                or matched_id is None
-                or qty is None
+            decision = order_risk_service.evaluate_order_extraction(
+                db,
+                extraction=ExtractionResult(
+                    items=[it],
+                    confidence_score=result.confidence_score,
+                    field_confidence=result.field_confidence,
+                    industry_type=result.industry_type,
+                    provider_name=result.provider_name,
+                ),
+                priced_items=[{
+                    "product_name": it.product_name,
+                    "quantity": qty,
+                    "matched_product_id": matched_id,
+                    "unit_price_cents": unit_price,
+                }],
+                default_threshold=_REVIEW_CONFIDENCE,
             )
             if matched_id is None:
                 unmatched += 1
             lines_out.append({
                 "lineNo": line_no,
-                "rawLine": raw_line,
-                "customerName": result.customer_name,
+                "rawLine": safe_raw_line,
+                "customerName": redact_pii(result.customer_name),
                 "productName": it.product_name,
                 "qty": qty,
                 "matchedProductId": matched_id,
                 "unitPriceCents": unit_price,
                 "confidence": round(result.confidence_score, 2),
-                "needsReview": needs_review,
+                "needsReview": decision.status != "approved",
+                "reviewReasons": decision.reasons,
             })
     return {"lines": lines_out, "unmatchedCount": unmatched}
 
@@ -139,6 +162,21 @@ def commit_batch(db: Session, principal: dict, store_id: int, batch: OrderBatch,
     missing = [ln.get("lineNo") for ln in lines if ln.get("unitPriceCents") is None]
     if missing:
         raise PriceRequired(missing)
+    invalid = []
+    for line in lines:
+        qty = line.get("qty")
+        unit_price = line.get("unitPriceCents")
+        if (
+            isinstance(qty, bool)
+            or not isinstance(qty, int)
+            or qty < 1
+            or isinstance(unit_price, bool)
+            or not isinstance(unit_price, int)
+            or unit_price < 0
+        ):
+            invalid.append(line.get("lineNo"))
+    if invalid:
+        raise BatchLineInvalid(invalid)
 
     try:
         # 去重：同批次同原文 hash 已 commit → UNIQUE 撞 → 409
@@ -162,8 +200,8 @@ def commit_batch(db: Session, principal: dict, store_id: int, batch: OrderBatch,
             db.add(order)
             db.flush()
             for ln in cust_lines:
-                qty = int(ln["qty"])                     # qty 缺 → 這裡拋錯 → 全回滾
-                up = int(ln["unitPriceCents"])           # 整數分（律七）
+                qty = ln["qty"]
+                up = ln["unitPriceCents"]
                 sub = qty * up
                 subtotal_sum += sub
                 db.add(OrderItem(

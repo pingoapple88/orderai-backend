@@ -77,7 +77,7 @@ def _text_payload(event_id="evt-1", uid="Ubuyer001", text="蘋果 x3"):
 
 
 def _run(payload, db):
-    asyncio.run(line_worker.process_webhook_event(payload, db=db))
+    return asyncio.run(line_worker.process_webhook_event(payload, db=db))
 
 
 def _order_count(db):
@@ -114,6 +114,43 @@ def test_llm_timeout_notifies_reason_and_no_order(db_session, monkeypatch):
 
     assert _order_count(db_session) == 0
     assert notif.sent and "provider_timeout" in notif.sent[0]["text"]
+
+
+def test_provider_timeout_returns_retryable_outcome_without_order(db_session, monkeypatch):
+    store, _ = _seed(db_session)
+    notif = _FakeNotif()
+    _install(monkeypatch, _FakeLLM(exc=httpx.TimeoutException("timeout")), notif, store.id)
+
+    outcomes = _run(_text_payload(event_id="timeout-retry-1"), db_session)
+
+    assert _order_count(db_session) == 0
+    assert outcomes == [line_worker.WorkerEventOutcome("needs_review", "provider_timeout", retryable=True)]
+
+
+def test_worker_redacts_text_at_provider_boundary(db_session, monkeypatch):
+    store, _ = _seed(db_session)
+    captured = []
+
+    class CaptureLLM:
+        async def extract_order(self, text=None, image_url=None, industry_type="ecom"):
+            captured.append(text)
+            return ExtractionResult(
+                items=[ExtractedItem(product_name="蘋果", quantity=3, evidence="", confidence_score=0.9)],
+                confidence_score=0.9,
+                industry_type=industry_type,
+            )
+
+    _install(monkeypatch, CaptureLLM(), _FakeNotif(), store.id)
+    outcomes = _run(
+        _text_payload(event_id="pii-boundary-1", text="姓名：王小明 電話0912345678 蘋果x3"),
+        db_session,
+    )
+
+    assert "王小明" not in captured[0]
+    assert "0912345678" not in captured[0]
+    assert _order_count(db_session) == 0
+    assert outcomes[0].status == "needs_review"
+    assert outcomes[0].reason_code == "missing_source_evidence"
 
 
 def test_structured_provider_error_notifies_reason_and_no_order(db_session, monkeypatch):

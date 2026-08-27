@@ -92,6 +92,8 @@ def commit_batch(store_id: int, batch_id: int, body: CommitRequest,
     except batch_service.PriceRequired as e:
         # 422：回出缺價的 line_no（沿用泛用 VALIDATION_ERROR，detail 帶 lineNos）
         raise HTTPException(422, {"message": "Price required", "lineNos": e.line_nos})
+    except batch_service.BatchLineInvalid as e:
+        raise HTTPException(422, {"message": "Invalid quantity or price", "lineNos": e.line_nos})
     return success_response(res)
 
 

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any, Dict, List, Optional
 
 import httpx
 
 from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, ILLMProvider
+from app.services.parse_normalizer import clean_product_name, normalize_quantity
 from app.services.pii_redaction import redact_pii
 
 
@@ -42,47 +44,56 @@ _ORDER_PROMPTS = {
 
 def _clamp_confidence(value: Any) -> float:
     try:
-        return max(0.0, min(1.0, float(value)))
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            return 0.0
+        return max(0.0, min(1.0, numeric))
     except (TypeError, ValueError):
         return 0.0
+
+
+def _optional_text(value: Any) -> Optional[str]:
+    return value if isinstance(value, str) else None
 
 
 def _parse_result(payload: Dict[str, Any], industry_type: str, provider_name: str) -> ExtractionResult:
     if not isinstance(payload, dict):
         payload = {"items": [], "confidence_score": 0}
     items: List[ExtractedItem] = []
-    for item in payload.get("items") or []:
+    raw_items = payload.get("items")
+    if not isinstance(raw_items, list):
+        raw_items = []
+    for item in raw_items:
         if not isinstance(item, dict):
             continue
-        quantity = item.get("quantity")
-        try:
-            quantity = int(quantity) if quantity is not None else None
-        except (TypeError, ValueError):
-            quantity = None
+        quantity = normalize_quantity(item.get("quantity")).value
         items.append(
             ExtractedItem(
-                product_name=str(item.get("product_name") or "").strip(),
+                product_name=clean_product_name(item.get("product_name")),
                 quantity=quantity,
-                unit=item.get("unit"),
-                appointment_time=item.get("appointment_time"),
-                staff_name=item.get("staff_name"),
-                evidence=str(item.get("evidence") or "").strip(),
+                unit=_optional_text(item.get("unit")),
+                appointment_time=_optional_text(item.get("appointment_time")),
+                staff_name=_optional_text(item.get("staff_name")),
+                evidence=clean_product_name(item.get("evidence")),
                 confidence_score=_clamp_confidence(item.get("field_confidence")),
             )
         )
+    raw_field_confidence = payload.get("field_confidence")
+    if not isinstance(raw_field_confidence, dict):
+        raw_field_confidence = {}
     field_confidence = {
         str(key): _clamp_confidence(value)
-        for key, value in (payload.get("field_confidence") or {}).items()
+        for key, value in raw_field_confidence.items()
     }
     return ExtractionResult(
         items=items,
-        customer_name=payload.get("customer_name"),
-        customer_phone=payload.get("customer_phone"),
+        customer_name=_optional_text(payload.get("customer_name")),
+        customer_phone=_optional_text(payload.get("customer_phone")),
         confidence_score=_clamp_confidence(payload.get("confidence_score")),
         field_confidence=field_confidence,
         industry_type=industry_type,
         provider_name=provider_name,
-        raw=payload,
+        raw={"item_count": len(items)},
     )
 
 

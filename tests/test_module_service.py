@@ -27,7 +27,7 @@ def test_registration_creates_service_state_and_redacted_audit_without_event(db_
         company_name="Synthetic Company",
         store_name="Synthetic Store",
         channel="direct",
-        locale="fr",
+        locale="zh-Hant-TW",
         idempotency_key="module-registration-001",
     )
 
@@ -49,19 +49,67 @@ def test_registration_is_idempotent_and_does_not_create_event(db_session):
         channel="dealer",
         locale="en-US",
         idempotency_key="module-registration-002",
+        referral_source="dealer-test-source",
     )
     second = module_service.register_self_service(
         db_session,
-        company_name="Ignored On Retry",
-        store_name="Ignored On Retry",
+        company_name="Synthetic Company",
+        store_name="Synthetic Store",
         channel="dealer",
         locale="en-US",
         idempotency_key="module-registration-002",
+        referral_source="dealer-test-source",
     )
 
     assert second.id == first.id
     assert len(db_session.execute(select(ModuleRegistration)).scalars().all()) == 1
     assert len(db_session.execute(select(AuditLog)).scalars().all()) == 1
+
+
+def test_same_client_key_is_isolated_between_companies(db_session):
+    first = module_service.register_self_service(
+        db_session,
+        company_name="Synthetic Company One",
+        store_name="Synthetic Store One",
+        channel="direct",
+        locale="en-US",
+        idempotency_key="shared-client-key-001",
+    )
+    second = module_service.register_self_service(
+        db_session,
+        company_name="Synthetic Company Two",
+        store_name="Synthetic Store Two",
+        channel="direct",
+        locale="en-US",
+        idempotency_key="shared-client-key-001",
+    )
+
+    assert second.id != first.id
+    assert len(db_session.execute(select(ModuleRegistration)).scalars().all()) == 2
+
+
+def test_dealer_registration_requires_referral_source(db_session):
+    with pytest.raises(HTTPException, match="Dealer referral source is required"):
+        module_service.register_self_service(
+            db_session,
+            company_name="Synthetic Company",
+            store_name="Synthetic Store",
+            channel="dealer",
+            locale="en-US",
+            idempotency_key="dealer-source-required",
+        )
+
+
+def test_service_rejects_locale_outside_five_locale_contract(db_session):
+    with pytest.raises(HTTPException, match="Unsupported locale"):
+        module_service.register_self_service(
+            db_session,
+            company_name="Synthetic Company",
+            store_name="Synthetic Store",
+            channel="direct",
+            locale="fr",
+            idempotency_key="unsupported-locale-key",
+        )
 
 
 def test_registration_does_not_require_event_registry_settings(db_session):
@@ -119,6 +167,7 @@ def test_status_uses_principal_store_scope(db_session):
     )
 
     assert "company_id" not in status
+    assert "store_key" not in status
     assert status["channel"] == "enterprise"
     assert status["ai_usage_count"] == 3
     with pytest.raises(HTTPException, match="Tenant scope denied"):

@@ -23,7 +23,7 @@ def is_order_message(db: Session, text: str) -> bool:
     try:
         return re.search(pattern, text) is not None
     except re.error:
-        return True  # 正則壞掉時 fail-open（避免擋住正常接單）
+        return False  # 正則設定不可信時不送 LLM，避免擴大解析範圍
 
 
 def monthly_usage(db: Session, user_id: int) -> int:

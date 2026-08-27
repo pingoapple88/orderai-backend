@@ -120,6 +120,7 @@ def test_case1_parse_does_not_write_orders(env):
     after = db.execute(select(func.count(Order.id))).scalar_one(); db.close()
     assert after == before, "parse 不得寫入任何 order"
     assert len(r.json()["data"]["lines"]) == 1
+    assert r.json()["data"]["lines"][0]["needsReview"] is True  # evidence 缺失不得自動通過
 
 
 # ── case 7：closed 批次 parse → 409 ───────────────────────────────────────────
@@ -250,6 +251,55 @@ def test_case4_commit_rollback_leaves_zero(env):
         assert n_orders == 0 and n_commits == 0
     finally:
         db.close()
+
+
+def test_commit_rejects_float_minor_units_without_coercion(env):
+    store_a, _ = env
+    batch_id = _new_batch(store_a)
+    db = SessionLocal()
+    try:
+        batch = db.get(OrderBatch, batch_id)
+        principal = {"user_id": _ctx["user_id"], "store_id": store_a}
+        unsafe_lines = [
+            {"lineNo": "1", "customerName": "Synthetic", "productName": "高麗菜", "qty": 2, "unitPriceCents": 4500.0},
+        ]
+        with pytest.raises(batch_service.BatchLineInvalid) as exc:
+            batch_service.commit_batch(db, principal, store_a, batch, "unsafe-price", unsafe_lines)
+        assert exc.value.line_nos == ["1"]
+        db.rollback()
+        assert db.execute(select(func.count(Order.id)).where(Order.batch_id == batch_id)).scalar_one() == 0
+    finally:
+        db.close()
+
+
+def test_parse_batch_redacts_source_before_llm_and_marks_missing_evidence_review(env):
+    store_a, _ = env
+    batch_id = _new_batch(store_a)
+    raw_line = "姓名：王小明 電話 0912345678 高麗菜2顆"
+    captured = []
+
+    class CaptureLLM:
+        async def extract_order(self, image_url=None, text=None, industry_type="ecom"):
+            captured.append(text)
+            return ExtractionResult(
+                items=[ExtractedItem(product_name="高麗菜", quantity=2, evidence="", confidence_score=0.9)],
+                customer_name="姓名：王小明",
+                confidence_score=0.9,
+            )
+
+    client = TestClient(app)
+    with patch("app.api.v1.batches.get_llm_provider", return_value=CaptureLLM()):
+        response = client.post(
+            f"/api/v1/stores/{store_a}/batches/{batch_id}/parse",
+            headers=_tok(store_a),
+            json={"rawText": raw_line},
+        )
+    assert response.status_code == 200
+    assert "0912345678" not in captured[0]
+    assert "王小明" not in captured[0]
+    line = response.json()["data"]["lines"][0]
+    assert line["needsReview"] is True
+    assert "missing_source_evidence" in line["reviewReasons"]
 
 
 def test_case9_summary_totals_match_item_subtotals(env):

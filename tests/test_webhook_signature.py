@@ -74,6 +74,26 @@ def test_valid_signature_enqueues_and_returns_200(client_with_queue):
     assert q.depth() == 1
 
 
+def test_duplicate_event_is_not_enqueued_twice_and_payload_is_deidentified(client_with_queue):
+    client, q = client_with_queue
+    body = json.dumps({"events": [{
+        "type": "message", "webhookEventId": "repeat-event", "replyToken": "reply-secret",
+        "source": {"type": "user", "userId": "Urepeat"},
+        "message": {"type": "text", "text": "陳小姐 0912345678 蘋果 2 顆"},
+    }]}).encode()
+    sig = _make_signature(body, "test-secret")
+
+    assert client.post("/api/v1/webhooks/line", content=body, headers={"X-Line-Signature": sig}).status_code == 200
+    assert client.post("/api/v1/webhooks/line", content=body, headers={"X-Line-Signature": sig}).status_code == 200
+
+    assert q.depth() == 1
+    queued = q.pop()["events"][0]
+    assert queued["queueMeta"] == {"attempt": 0}
+    assert "replyToken" not in queued
+    assert "userId" not in queued["source"]
+    assert "0912345678" not in queued["message"]["text"]
+
+
 def test_invalid_signature_returns_401_and_not_enqueued(client_with_queue):
     client, q = client_with_queue
     body = json.dumps({"events": []}).encode()

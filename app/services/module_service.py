@@ -1,18 +1,26 @@
 """OrderAI 獨立服務註冊、方案狀態與事件 outbox；所有租戶讀寫皆以 company_id／store_id 範圍限制。"""
 from __future__ import annotations
 
+from hashlib import sha256
+import unicodedata
 from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.adapters.merchcore_module import MODULE_KEY, MODULE_VERSION, normalize_locale
+from app.adapters.merchcore_module import MODULE_KEY, MODULE_VERSION, SUPPORTED_LOCALES
 from app.models import AuditLog, Company, ModuleRegistration, Plan, Store, User
 
 
 def _store_key() -> str:
     return "ord_{}".format(uuid4().hex)
+
+
+def _company_idempotency_key(company_name: str, idempotency_key: str) -> str:
+    """以正規化公司名稱命名 idempotency namespace，保留既有欄位長度與唯一限制。"""
+    normalized_company = " ".join(unicodedata.normalize("NFKC", company_name).casefold().split())
+    return sha256(f"{MODULE_KEY}\x1f{normalized_company}\x1f{idempotency_key}".encode("utf-8")).hexdigest()
 
 
 def register_self_service(
@@ -24,6 +32,7 @@ def register_self_service(
     locale: str,
     idempotency_key: str,
     plan_name: str | None = None,
+    referral_source: str | None = None,
 ) -> ModuleRegistration:
     """建立待啟用註冊；服務狀態只在 OrderAI 內保存，不產生生命週期事件。"""
     company_name = company_name.strip()
@@ -32,10 +41,17 @@ def register_self_service(
         raise HTTPException(status_code=422, detail="Company and store names cannot be blank")
     if channel not in {"direct", "dealer", "enterprise"}:
         raise HTTPException(status_code=422, detail="Unsupported channel")
+    if locale not in SUPPORTED_LOCALES:
+        raise HTTPException(status_code=422, detail="Unsupported locale")
+    if channel == "dealer" and not isinstance(referral_source, str):
+        raise HTTPException(status_code=422, detail="Dealer referral source is required")
+    if channel == "dealer" and not referral_source.strip():
+        raise HTTPException(status_code=422, detail="Dealer referral source is required")
+    stored_idempotency_key = _company_idempotency_key(company_name, idempotency_key)
     existing = db.execute(
         select(ModuleRegistration).where(
             ModuleRegistration.module_key == MODULE_KEY,
-            ModuleRegistration.idempotency_key == idempotency_key,
+            ModuleRegistration.idempotency_key == stored_idempotency_key,
         )
     ).scalar_one_or_none()
     if existing:
@@ -59,16 +75,15 @@ def register_self_service(
     )
     db.add(store)
     db.flush()
-    normalized_locale = normalize_locale(locale)
     registration = ModuleRegistration(
         company_id=company.id,
         store_id=store.id,
         module_key=MODULE_KEY,
         module_version=MODULE_VERSION,
         channel=channel,
-        locale=normalized_locale,
+        locale=locale,
         status="pending_activation",
-        idempotency_key=idempotency_key,
+        idempotency_key=stored_idempotency_key,
     )
     db.add(registration)
     db.flush()
@@ -83,7 +98,7 @@ def register_self_service(
                 "module_key": MODULE_KEY,
                 "module_version": MODULE_VERSION,
                 "channel": channel,
-                "locale": normalized_locale,
+                "locale": locale,
                 "plan_name": plan_name,
                 "status": registration.status,
             },
@@ -129,7 +144,6 @@ def get_module_status(db: Session, *, principal: dict) -> dict:
             .order_by(Plan.id.asc())
         ).scalars().first()
     return {
-        "store_key": store.store_key,
         "registration": registration,
         "plan_name": store.plan,
         "channel": registration.channel if registration else None,

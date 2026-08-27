@@ -23,7 +23,11 @@ def test_webhook_enqueues_and_returns_200_fast(monkeypatch):
     providers.set_queue(q)
 
     client = TestClient(app)
-    payload = {"message": {"text": "肉乾+2"}}
+    payload = {"events": [{
+        "type": "message", "webhookEventId": "fast-event-001", "replyToken": "secret-reply-token",
+        "source": {"type": "user", "userId": "Ufastbuyer"},
+        "message": {"type": "text", "text": "姓名：王小明 電話 0912345678 肉乾+2"},
+    }]}
     body = json.dumps(payload).encode()
     digest = hmac.new(secret.encode(), body, hashlib.sha256).digest()
     sig = base64.b64encode(digest).decode()
@@ -38,5 +42,10 @@ def test_webhook_enqueues_and_returns_200_fast(monkeypatch):
 
     assert resp.status_code == 200
     assert q.depth() == 1
-    assert q.pop()["message"]["text"] == "肉乾+2"
+    queued_event = q.pop()["events"][0]
+    assert queued_event["lineEventHash"]
+    assert queued_event["source"]["lineUserHash"]
+    assert "0912345678" not in queued_event["message"]["text"]
+    assert "王小明" not in queued_event["message"]["text"]
+    assert "replyToken" not in queued_event
     assert elapsed_ms < 500  # 放寬到 500ms（沙箱環境）

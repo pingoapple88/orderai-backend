@@ -1,0 +1,15 @@
+T5 Next Stage — Locale and PII Contract Evidence
+
+Formal locale set:
+zh-Hant-TW, en-US, th-TH, ja-JP, id-ID.
+
+Verified integration boundaries:
+- module manifest, request schema, service validation and i18n message table use the same five locale codes.
+- unsupported locale is rejected by self-service registration; i18n display fallback is zh-Hant-TW only.
+- existing five-language PII fixtures exercise Chinese, English, Thai, Japanese and Indonesian at Provider and audit boundaries.
+- synthetic Queue and batch tests additionally prove phone/email/name-labelled data is redacted before enqueue or provider calls.
+- audit stores redacted source hash plus control fields only.
+
+Executed command summary:
+pytest -q tests/test_pii_redaction.py tests/test_i18n_contract.py tests/test_module_api.py tests/test_module_service.py
+Result: included in the focused 90 passed run, exit 0.

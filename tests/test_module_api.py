@@ -70,9 +70,9 @@ def test_registration_api_is_idempotent_and_minimizes_public_response():
         assert second.status_code == 201
         first_data = first.json()["data"]
         second_data = second.json()["data"]
-        assert first_data["id"] == second_data["id"]
+        assert first_data == second_data
         assert first_data["status"] == "pending_activation"
-        assert not {"companyId", "storeId", "eventId"}.intersection(first_data)
+        assert set(first_data) == {"moduleKey", "moduleVersion", "channel", "locale", "status"}
 
         db = SessionLocal()
         try:
@@ -94,10 +94,39 @@ def test_registration_api_rejects_blank_or_unsafe_inputs():
     unsupported_locale = client.post(
         "/api/v1/module/orderai/registrations", json=_payload(locale="fr")
     )
+    missing_dealer_source = client.post(
+        "/api/v1/module/orderai/registrations", json=_payload(channel="dealer")
+    )
 
     assert blank.status_code == 422
     assert unsafe_key.status_code == 422
     assert unsupported_locale.status_code == 422
+    assert missing_dealer_source.status_code == 422
+
+
+def test_registration_api_scopes_same_key_by_company():
+    _cleanup()
+    client = TestClient(app)
+    shared_key = f"same-client-key-{uuid.uuid4().hex}"
+    try:
+        first = client.post(
+            "/api/v1/module/orderai/registrations",
+            json=_payload(companyName=f"{_MARK}Company One", idempotencyKey=shared_key),
+        )
+        second = client.post(
+            "/api/v1/module/orderai/registrations",
+            json=_payload(companyName=f"{_MARK}Company Two", idempotencyKey=shared_key),
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        db = SessionLocal()
+        try:
+            assert len(db.execute(select(ModuleRegistration)).scalars().all()) == 2
+        finally:
+            db.close()
+    finally:
+        _cleanup()
 
 
 def test_status_api_requires_jwt_store_scope_and_hides_company_identifier():
@@ -107,10 +136,13 @@ def test_status_api_requires_jwt_store_scope_and_hides_company_identifier():
     try:
         response = client.post("/api/v1/module/orderai/registrations", json=payload)
         assert response.status_code == 201
-        registration_id = response.json()["data"]["id"]
         db = SessionLocal()
         try:
-            registration = db.get(ModuleRegistration, registration_id)
+            registration = db.execute(
+                select(ModuleRegistration)
+                .join(Company, ModuleRegistration.company_id == Company.id)
+                .where(Company.name == payload["companyName"])
+            ).scalar_one()
             plan_id = db.execute(select(Plan.id).order_by(Plan.id)).scalars().first()
             assert plan_id is not None
             user = User(
@@ -136,5 +168,6 @@ def test_status_api_requires_jwt_store_scope_and_hides_company_identifier():
         data = allowed.json()["data"]
         assert data["status"] == "pending_activation"
         assert "companyId" not in data
+        assert "storeKey" not in data
     finally:
         _cleanup()
