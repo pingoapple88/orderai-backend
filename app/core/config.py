@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     app_name: str = "OrderAI Backend"
     environment: str = "development"
     port: int = 8000
+    # 發佈版本由部署系統注入，供 health 檢查識別 API 實際運行的 release。
+    # 未注入時明確回傳 unknown，不以本機 Git 或推測值冒充正式部署版本。
+    release_sha: str = "unknown"
 
     # 資料主權：指向自有 Railway PostgreSQL
     database_url: str = "postgresql+psycopg2://orderai:orderai@localhost:5432/orderai"

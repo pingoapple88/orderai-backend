@@ -1,9 +1,17 @@
 from fastapi.testclient import TestClient
-from app.main import app
+from app.main import app, settings
 
 
 def test_health():
-    assert TestClient(app).get("/health").json()["status"] == "ok"
+    body = TestClient(app).get("/health").json()
+    assert body["status"] == "ok"
+    assert body["releaseSha"] == "unknown"
+
+
+def test_health_reports_deployment_release_sha(monkeypatch):
+    expected_sha = "a" * 40
+    monkeypatch.setattr(settings, "release_sha", expected_sha)
+    assert TestClient(app).get("/health").json()["releaseSha"] == expected_sha
 
 
 def test_models_cover_all_tables():

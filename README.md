@@ -35,6 +35,21 @@ curl http://localhost:8000/health
 docker compose up --build     # 起 postgres + api，自動 alembic upgrade
 ```
 
+## 部署版本識別
+
+部署系統必須將目前映像對應的完整 Git SHA 注入 `RELEASE_SHA`；API 的
+`GET /health` 會回傳 `releaseSha`，用來對照 staging 與正式 API 實際運行的
+版本。未設定時明確回傳 `unknown`，不以本機或推測的 SHA 冒充部署版本。
+
+```bash
+RELEASE_SHA="$GIT_COMMIT_SHA" uvicorn app.main:app --host 0.0.0.0 --port 8000
+curl http://localhost:8000/health
+# {"status":"ok","timestamp":"...","releaseSha":"<40-char-sha>"}
+```
+
+API、app、RQ Worker 與 Scheduler 的 release SHA 必須一致，才可進行切換或
+回滾判定。`RELEASE_SHA` 不是 secret，不可改用任何 credential 或連線字串。
+
 ## 測試
 ```bash
 pytest

@@ -66,7 +66,11 @@ async def _debug_exc_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "releaseSha": settings.release_sha,
+    }
 
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
