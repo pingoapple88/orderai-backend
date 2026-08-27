@@ -35,7 +35,7 @@ def _cleanup(line_id: str) -> None:
 
 def _provider(profile: SimpleNamespace | None = None, error: Exception | None = None):
     def _authorize_url(state: str) -> str:
-        return f"https://line.example.invalid/authorize?state={state}"
+        return f"/synthetic-line-authorize?state={state}"
 
     exchange_code = AsyncMock(return_value=profile)
     if error is not None:
