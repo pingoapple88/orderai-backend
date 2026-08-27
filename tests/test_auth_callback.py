@@ -1,11 +1,12 @@
-"""line_callback 建新 user + store 的實跑測試（Bug 修復回歸）。
+"""LINE OAuth state cookie 與 callback 的合成回歸測試。
 
-原本零覆蓋 → 上線才炸(stores 缺欄位、users 缺 picture_url)。
-本測試 mock LINE exchange_code，實際打 callback，斷言 user+store 建立成功、
-picture_url 寫入成功。依賴 DB 在 head(含 0002 補欄位)。
+所有案例使用 HTTPS TestClient 與 mock provider；不連線正式 LINE、不使用正式憑證。
+授權入口先建立 HttpOnly/Secure/SameSite=Lax 的 state cookie，callback 僅接受
+同一個 cookie 與 query state，成功後一次性清除。
 """
+from urllib.parse import parse_qs, urlparse
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
@@ -32,19 +33,52 @@ def _cleanup(line_id: str) -> None:
         db.close()
 
 
-def test_line_callback_creates_user_and_store():
-    _cleanup(_LINE_ID)  # 前置清理，測試冪等
-    fake_profile = SimpleNamespace(
-        external_id=_LINE_ID, display_name="測試店", avatar_url="http://x/a.png"
-    )
-    provider = SimpleNamespace(exchange_code=AsyncMock(return_value=fake_profile))
-    try:
-        with patch("app.api.v1.auth.get_auth_provider", return_value=provider):
-            client = TestClient(app)
-            r = client.get("/api/v1/auth/line/callback?code=fakecode", follow_redirects=False)
+def _provider(profile: SimpleNamespace | None = None, error: Exception | None = None):
+    def _authorize_url(state: str) -> str:
+        return f"/synthetic-line-authorize?state={state}"
 
-        # 建單成功 → 302/307 導回前端（若 stores/users 缺欄位會 500）
-        assert r.status_code in (302, 307), f"expected redirect, got {r.status_code}: {r.text}"
+    exchange_code = AsyncMock(return_value=profile)
+    if error is not None:
+        exchange_code.side_effect = error
+    return SimpleNamespace(get_authorize_url=Mock(side_effect=_authorize_url), exchange_code=exchange_code)
+
+
+def _start_login(provider) -> tuple[TestClient, str, object]:
+    client = TestClient(app, base_url="https://testserver")
+    with patch("app.api.v1.auth.get_auth_provider", return_value=provider):
+        response = client.get("/api/v1/auth/line/login", follow_redirects=False)
+
+    assert response.status_code == 302
+    state = parse_qs(urlparse(response.headers["location"]).query)["state"][0]
+    assert client.cookies.get("line_oauth_state") == state
+    set_cookie = response.headers["set-cookie"].lower()
+    assert "httponly" in set_cookie
+    assert "secure" in set_cookie
+    assert "samesite=lax" in set_cookie
+    assert "max-age=600" in set_cookie
+    return client, state, response
+
+
+def _callback(client: TestClient, provider, *, code: str = "fakecode", state: str | None = None):
+    query = f"code={code}"
+    if state is not None:
+        query += f"&state={state}"
+    with patch("app.api.v1.auth.get_auth_provider", return_value=provider):
+        return client.get(f"/api/v1/auth/line/callback?{query}", follow_redirects=False)
+
+
+def test_line_callback_valid_state_creates_user_store_and_clears_cookie():
+    _cleanup(_LINE_ID)
+    fake_profile = SimpleNamespace(external_id=_LINE_ID, display_name="測試店", avatar_url="http://x/a.png")
+    provider = _provider(profile=fake_profile)
+    try:
+        client, state, _ = _start_login(provider)
+        response = _callback(client, provider, state=state)
+
+        assert response.status_code in (302, 307), response.text
+        assert "line_oauth_state=\"\"" in response.headers["set-cookie"].lower()
+        assert "max-age=0" in response.headers["set-cookie"].lower()
+        assert client.cookies.get("line_oauth_state") is None
 
         db = SessionLocal()
         user = db.execute(select(User).where(User.line_id == _LINE_ID)).scalar_one_or_none()
@@ -56,3 +90,61 @@ def test_line_callback_creates_user_and_store():
         db.close()
     finally:
         _cleanup(_LINE_ID)
+
+
+def test_line_callback_rejects_missing_state():
+    provider = _provider(profile=SimpleNamespace(external_id="Umissing", display_name="測試店", avatar_url=None))
+    client, _, _ = _start_login(provider)
+    response = _callback(client, provider)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid state"
+    provider.exchange_code.assert_not_awaited()
+
+
+def test_line_callback_rejects_mismatched_state():
+    provider = _provider(profile=SimpleNamespace(external_id="Umismatch", display_name="測試店", avatar_url=None))
+    client, _, _ = _start_login(provider)
+    response = _callback(client, provider, state="different-state")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid state"
+    provider.exchange_code.assert_not_awaited()
+
+
+def test_line_callback_rejects_expired_cookie_simulation():
+    provider = _provider(profile=SimpleNamespace(external_id="Uexpired", display_name="測試店", avatar_url=None))
+    client, state, _ = _start_login(provider)
+    client.cookies.clear()  # 模擬瀏覽器在 Max-Age=600 到期後不再送出 cookie。
+    response = _callback(client, provider, state=state)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid state"
+    provider.exchange_code.assert_not_awaited()
+
+
+def test_line_callback_rejects_replayed_state_after_success():
+    line_id = "Ureplay_callback_fixture"
+    _cleanup(line_id)
+    provider = _provider(profile=SimpleNamespace(external_id=line_id, display_name="重放測試店", avatar_url=None))
+    try:
+        client, state, _ = _start_login(provider)
+        first = _callback(client, provider, state=state)
+        replay = _callback(client, provider, state=state)
+
+        assert first.status_code in (302, 307)
+        assert replay.status_code == 400
+        assert replay.json()["error"]["message"] == "Invalid state"
+        assert provider.exchange_code.await_count == 1
+    finally:
+        _cleanup(line_id)
+
+
+def test_line_callback_provider_error_keeps_state_validation_and_returns_error():
+    provider = _provider(error=RuntimeError("synthetic provider failure"))
+    client, state, _ = _start_login(provider)
+    response = _callback(client, provider, state=state)
+
+    assert response.status_code == 500
+    assert "LINE exchange failed" in response.json()["error"]["message"]
+    provider.exchange_code.assert_awaited_once_with("fakecode")
