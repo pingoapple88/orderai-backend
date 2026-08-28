@@ -111,6 +111,27 @@ async def test_paid_adapter_can_activate_entitlement_but_unknown_or_failure_is_m
 
 
 @pytest.mark.asyncio
+async def test_all_channels_require_their_own_existing_plan(db_session):
+    principal, direct_plan = _principal_with_plan(db_session)
+    dealer_plan = Plan(name="synthetic-dealer-plan", channel="dealer", monthly_price=12345, currency="TWD")
+    enterprise_plan = Plan(name="synthetic-enterprise-plan", channel="enterprise", monthly_price=12345, currency="TWD")
+    db_session.add_all([dealer_plan, enterprise_plan])
+    db_session.commit()
+    for index, plan in enumerate((direct_plan, dealer_plan, enterprise_plan)):
+        subscription = await subscription_service.create_intent(
+            db_session,
+            principal=principal,
+            plan_name=plan.name,
+            channel=plan.channel,
+            idempotency_key=f"subscription-channel-{index}-001",
+            subscription_provider=LocalSubscriptionProvider(),
+        )
+        assert subscription.channel == plan.channel
+        assert subscription.status == "pending_payment"
+        assert subscription.entitlement_status == "pending_activation"
+
+
+@pytest.mark.asyncio
 async def test_provider_failure_never_auto_activates_and_invoice_stays_manual_review(db_session):
     principal, plan = _principal_with_plan(db_session)
     failed = await subscription_service.create_intent(
@@ -152,6 +173,34 @@ async def test_provider_failure_never_auto_activates_and_invoice_stays_manual_re
     assert invoice.status == "manual_review"
     assert invoice.amount_minor == plan.monthly_price and isinstance(invoice.amount_minor, int)
     assert len(db_session.execute(select(InvoiceRecord)).scalars().all()) == 1
+    duplicate = subscription_service.request_invoice(
+        db_session,
+        principal=principal,
+        subscription=active,
+        invoice_provider=LocalManualReviewInvoiceProvider(),
+        idempotency_key="invoice-active-001",
+    )
+    assert duplicate.id == invoice.id
+    audit_values = db_session.execute(
+        select(AuditLog).where(AuditLog.action == "subscription.intent.created").order_by(AuditLog.id.asc())
+    ).scalars().first().new_value
+    assert "payment_reference" not in audit_values and "provider_reference" not in audit_values
+
+    timeout = await subscription_service.create_intent(
+        db_session,
+        principal=principal,
+        plan_name=plan.name,
+        channel="direct",
+        idempotency_key="subscription-provider-timeout-001",
+        subscription_provider=LocalSubscriptionProvider(),
+        payment_provider=StubPaymentProvider(timeout=True),
+    )
+    assert timeout.status == "manual_review"
+    assert timeout.entitlement_status == "manual_review"
+    timeout_audit = db_session.execute(
+        select(AuditLog).where(AuditLog.action == "subscription.intent.created").order_by(AuditLog.id.desc())
+    ).scalars().first()
+    assert timeout_audit.new_value["reason_code"] == "PAYMENT_PROVIDER_TIMEOUT"
 
 
 @pytest.mark.asyncio
