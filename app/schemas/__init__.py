@@ -177,3 +177,43 @@ class ModuleStatusOut(CamelModel):
     ai_usage_count: int
     ai_extraction_limit: Optional[int] = None
     status: str
+
+
+# ── W2 OrderAI independent subscription self-service ───────────────────────
+class SubscriptionIntentCreate(CamelModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True, extra="forbid")
+    plan_name: str = Field(min_length=1, max_length=100)
+    channel: Literal["direct", "dealer", "enterprise"]
+    idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
+
+
+class SubscriptionActionCreate(CamelModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True, extra="forbid")
+    action: Literal["renew", "change_plan", "cancel"]
+    idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
+    target_plan_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+
+
+class InvoiceRequestCreate(CamelModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True, extra="forbid")
+    idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
+
+
+class SubscriptionOut(CamelModel):
+    status: str
+    entitlement_status: str
+    channel: str
+    plan_name: str
+    ai_usage_count: int
+    ai_extraction_limit: Optional[int] = None
+    current_period_end: Optional[datetime] = None
+    payment_status: str
+    invoice_status: str
+
+
+class InvoiceStatusOut(CamelModel):
+    status: str
+    amount_minor: int
+    currency: str
+    issued_at: Optional[datetime] = None
+    due_at: Optional[datetime] = None

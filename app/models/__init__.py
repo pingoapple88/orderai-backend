@@ -201,6 +201,49 @@ class BillingRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
+class SubscriptionRecord(Base):
+    """OrderAI 自助訂閱狀態；所有 mutation 都由 server-derived scope 服務層驗證。"""
+    __tablename__ = "subscription_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("plans.id"), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending_payment")
+    entitlement_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending_activation")
+    payment_reference: Mapped[Optional[str]] = mapped_column(String(255))
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    canceled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("company_id", "idempotency_key", name="uq_subscription_company_idempotency"),)
+
+
+class InvoiceRecord(Base):
+    """發票狀態記錄；未知或未配置 Provider 一律不得標示為 issued。"""
+    __tablename__ = "invoice_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    subscription_id: Mapped[int] = mapped_column(Integer, ForeignKey("subscription_records.id"), nullable=False, index=True)
+    billing_record_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("billing_records.id", ondelete="SET NULL"))
+    amount_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    provider_reference: Mapped[Optional[str]] = mapped_column(String(255))
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    issued_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    due_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("company_id", "idempotency_key", name="uq_invoice_company_idempotency"),)
+
+
 class AIExtraction(Base):
     __tablename__ = "ai_extractions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

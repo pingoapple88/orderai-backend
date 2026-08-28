@@ -4,10 +4,13 @@ from app.core.interfaces.auth_provider import IAuthProvider
 from app.core.interfaces.llm_provider import ILLMProvider
 from app.core.interfaces.notification_provider import INotificationProvider
 from app.core.interfaces.payment_provider import IPaymentProvider
+from app.core.interfaces.invoice_provider import IInvoiceProvider
+from app.core.interfaces.subscription_provider import ISubscriptionProvider
 from app.providers.failover_llm import FailoverLLMProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
 from app.providers.stallpay import StallPayProvider
+from app.providers.local_subscription import LocalManualReviewInvoiceProvider, LocalSubscriptionProvider
 
 settings = get_settings()
 
@@ -60,9 +63,54 @@ def get_notification_provider() -> INotificationProvider:
     return LineAuthProvider()
 
 
+_payment_provider: IPaymentProvider | None = None
+
+
 def get_payment_provider() -> IPaymentProvider:
-    # OrderAI 不自處理金流，一律委派 StallPay
-    return StallPayProvider()
+    # OrderAI 不自處理金流，一律委派 StallPay。
+    return _payment_provider or StallPayProvider()
+
+
+def set_payment_provider(provider: IPaymentProvider | None) -> None:
+    """測試或受控啟動時注入可替換付款 Provider。"""
+    global _payment_provider
+    _payment_provider = provider
+
+
+_subscription_provider: ISubscriptionProvider | None = None
+_invoice_provider: IInvoiceProvider | None = None
+
+
+def get_subscription_provider() -> ISubscriptionProvider:
+    """訂閱決策邊界；預設本機 deterministic policy，不會觸發外部操作。"""
+    global _subscription_provider
+    if _subscription_provider is None:
+        if settings.subscription_provider != "local":
+            raise RuntimeError("Subscription provider is not configured")
+        _subscription_provider = LocalSubscriptionProvider()
+    return _subscription_provider
+
+
+def get_invoice_provider() -> IInvoiceProvider:
+    """未設定正式發票 Provider 時固定 manual review，禁止假裝已開立。"""
+    global _invoice_provider
+    if _invoice_provider is None:
+        if settings.invoice_provider != "manual_review":
+            raise RuntimeError("Invoice provider is not configured")
+        _invoice_provider = LocalManualReviewInvoiceProvider()
+    return _invoice_provider
+
+
+def set_subscription_provider(provider: ISubscriptionProvider | None) -> None:
+    """測試或受控啟動時注入可替換 Provider。"""
+    global _subscription_provider
+    _subscription_provider = provider
+
+
+def set_invoice_provider(provider: IInvoiceProvider | None) -> None:
+    """測試或受控啟動時注入可替換 Provider。"""
+    global _invoice_provider
+    _invoice_provider = provider
 
 
 # ---- PR-2：佇列工廠（情境一）----

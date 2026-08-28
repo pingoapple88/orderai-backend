@@ -1,0 +1,68 @@
+{
+  "fixtureVersion": "ORDERAI-SUBSCRIPTION-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "generatedAt": "2026-08-28T00:00:00Z",
+  "scenarios": [
+    {
+      "id": "direct-pending-payment",
+      "locale": "zh-Hant-TW",
+      "channel": "direct",
+      "subscriptionStatus": "pending_payment",
+      "paymentStatus": "pending",
+      "entitlementStatus": "pending_activation",
+      "invoiceStatus": "not_requested",
+      "idempotencyStatus": "accepted",
+      "allowedActions": ["cancel"],
+      "auditStatus": "recorded"
+    },
+    {
+      "id": "dealer-active-entitlement",
+      "locale": "en-US",
+      "channel": "dealer",
+      "subscriptionStatus": "active",
+      "paymentStatus": "paid",
+      "entitlementStatus": "active",
+      "invoiceStatus": "manual_review",
+      "idempotencyStatus": "accepted",
+      "allowedActions": ["renew", "change_plan", "cancel", "request_invoice"],
+      "auditStatus": "recorded"
+    },
+    {
+      "id": "enterprise-provider-timeout",
+      "locale": "th-TH",
+      "channel": "enterprise",
+      "subscriptionStatus": "manual_review",
+      "paymentStatus": "unknown",
+      "entitlementStatus": "blocked",
+      "invoiceStatus": "not_requested",
+      "idempotencyStatus": "accepted",
+      "allowedActions": [],
+      "auditStatus": "recorded",
+      "reasonCode": "PROVIDER_TIMEOUT"
+    },
+    {
+      "id": "direct-past-due",
+      "locale": "ja-JP",
+      "channel": "direct",
+      "subscriptionStatus": "past_due",
+      "paymentStatus": "failed",
+      "entitlementStatus": "blocked",
+      "invoiceStatus": "manual_review",
+      "idempotencyStatus": "accepted",
+      "allowedActions": ["renew", "cancel"],
+      "auditStatus": "recorded"
+    },
+    {
+      "id": "dealer-canceled",
+      "locale": "id-ID",
+      "channel": "dealer",
+      "subscriptionStatus": "canceled",
+      "paymentStatus": "not_initiated",
+      "entitlementStatus": "inactive",
+      "invoiceStatus": "not_requested",
+      "idempotencyStatus": "duplicate_blocked",
+      "allowedActions": [],
+      "auditStatus": "recorded"
+    }
+  ]
+}

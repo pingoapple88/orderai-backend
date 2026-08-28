@@ -1,0 +1,25 @@
+{
+  "screenContractVersion": "ORDERAI-SUBSCRIPTION-W2-01",
+  "screenId": "orderai.subscription_lifecycle",
+  "dataBoundary": "DEMO_MOCK",
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "currencyRule": "integer_minor_units_only",
+  "timeRule": "UTC_RFC3339_only",
+  "requiredViews": [
+    "product_entry",
+    "channel_plan_selection",
+    "payment_status",
+    "entitlement_status",
+    "subscription_management",
+    "invoice_status"
+  ],
+  "failClosed": {
+    "unknownPayment": "manual_review",
+    "unknownInvoice": "manual_review",
+    "unknownSubscriptionAction": "manual_review",
+    "missingScope": "blocked"
+  },
+  "allowedActions": ["start_subscription", "renew", "change_plan", "cancel", "request_invoice"],
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "paymentReference", "providerReference"]
+}

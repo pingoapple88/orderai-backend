@@ -1,3 +1,12 @@
 - [ ] **Inherited Auth baseline blocker**：`tests/test_auth_callback.py::test_line_callback_creates_user_and_store` 仍未先建立 OAuth state cookie 即直接呼叫 callback；本功能分支不得修改、帶入、squash、cherry-pick 或手動複製此修正。
 - [ ] **Auth owner action**：僅由獨立 PR `fix/oauth-state-test-fixture` 進行 review 與合併至 main。
 - [ ] **Post-Auth staging validation**：待 Auth PR 合併後，以新的 main 完整 SHA 建立新的 staging 驗證分支，重跑完整 `pytest -q`、compileall、diff check 與受控環境驗證。
+- [ ] **Subscription lifecycle contract**：沿用既有 plans、billing_records、module self-service、IPaymentProvider 與 Alembic chain，建立不依賴 OAuth 的 T5 訂閱生命週期最小契約。
+- [ ] **Provider abstraction**：新增 `ISubscriptionProvider`、`IInvoiceProvider` 與可替換的 local mock provider；不連接正式支付、發票、LLM、LINE、Redis 或資料庫服務。
+- [ ] **Fail-closed lifecycle**：實作 server-derived scope 的訂閱意向、付款 pending／failed／unknown、entitlement 啟用、續訂、方案變更、取消、逾期與 manual review；unknown 一律不可自動啟用或開票。
+- [ ] **Synthetic product screens**：以五語系 fixture／screen contract 呈現產品入口、通路、AI 額度、訂閱、帳務與發票狀態；不提供真實客戶、付款或發票資料。
+- [ ] **Evidence and handoff**：補齊 idempotency、audit、UTC、integer minor units、PII redaction、provider failure tests、rollback 與 evidence，推送本分支後更新共享看板與整合 Manifest。
+- [ ] **統一 Acceptance Criteria 自審**：對本輪新增 subscription／invoice interface、migration、service、route、screen contract 與 fixture 執行最小 focused／affected smoke、compile、diff 與精準掃描，輸出逐項 PASS／FAIL／BLOCKED／RETURN_FOR_EVIDENCE 的 evidence matrix。
+- [ ] **共享回填**：commit、push 與取得 40 字 HEAD 後，增量更新共享看板及 Manifest 的 T5 status、last_update、source_commit、next_action、cross_team_requests、Gate 與 rollback。
+- [ ] **逐項驗收 evidence**：將 Repository／SHA、changed paths、reuse mode、route／screen／adapter、生命週期狀態、最小 smoke、scope／RBAC／PII／UTC／minor units／idempotency／audit、五語系／RWD、scan、TODO／Gate／next action 寫入版本化 Acceptance matrix。
+- [ ] **本輪 source／evidence commit**：修正格式檢查後提交 subscription lifecycle source，再以該 source SHA 產出 Acceptance evidence，提交並推送 feature branch。

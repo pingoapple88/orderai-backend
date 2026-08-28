@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
     stallpay_api_key: str = ""
 
+    # OrderAI self-service subscriptions: local adapters are fail-closed defaults.
+    subscription_provider: str = "local"
+    invoice_provider: str = "manual_review"
+    subscription_period_days: int = 30
+
     # i18n
     default_lang: str = "zh-Hant-TW"
 
