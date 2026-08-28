@@ -1,0 +1,32 @@
+# T5 payment method management contract smoke
+
+- base_head: `5f6ba5efe32a8fe86b7882b951c1dac0021494db`
+- data_boundary: `DEMO_MOCK`
+- formal_connection: `false`
+- persistence_or_vault: `owner_gate`
+
+## Executed verification
+
+`pytest -q tests/ui/orderai/test_payment_method_management_contract.py tests/ui/orderai/test_operations_readiness_contract.py`
+
+Result: `4 passed`; exit code `0`.
+
+`python3 -m json.tool src/ui/contracts/orderai/orderai.payment_method_management.json`
+
+`python3 -m json.tool src/ui/fixtures/orderai/orderai_payment_method_management.json`
+
+`python3 -m compileall -q tests/ui/orderai`
+
+`git diff --check`
+
+Result: each exit code `0`.
+
+## Precise changed-asset scan
+
+- external_or_secret: `MATCH=NO`
+- shadow_or_analytics: `MATCH=NO`
+- unapproved_event: `MATCH=NO`
+
+## Scope assertion
+
+This evidence validates only the provider-neutral screen contract, synthetic fixture, and focused harness. It does not validate a payment-method vault, tokenization, provider callback, persistence migration, payment API route, sandbox connector, or real payment method operation. Each is `owner_gate` pending a centrally approved contract and test environment.

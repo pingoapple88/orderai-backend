@@ -1,0 +1,47 @@
+{
+  "fixtureVersion": "ORDERAI-PAYMENT-METHOD-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "scenarios": [
+    {
+      "id": "add-method-owner-gate",
+      "locale": "zh-Hant-TW",
+      "action": "add_payment_method",
+      "status": "owner_gate",
+      "allowedActions": [],
+      "reasonCode": "PAYMENT_METHOD_VAULT_NOT_APPROVED"
+    },
+    {
+      "id": "switch-default-owner-gate",
+      "locale": "en-US",
+      "action": "switch_default_payment_method",
+      "status": "owner_gate",
+      "allowedActions": [],
+      "reasonCode": "PAYMENT_METHOD_PROVIDER_CAPABILITY_NOT_APPROVED"
+    },
+    {
+      "id": "update-settings-owner-gate",
+      "locale": "th-TH",
+      "action": "update_payment_method_settings",
+      "status": "owner_gate",
+      "allowedActions": [],
+      "reasonCode": "PAYMENT_METHOD_SETTING_CONTRACT_NOT_APPROVED"
+    },
+    {
+      "id": "remove-last-method-blocked",
+      "locale": "ja-JP",
+      "action": "remove_payment_method",
+      "status": "blocked",
+      "allowedActions": [],
+      "reasonCode": "LAST_ACTIVE_PAYMENT_METHOD"
+    },
+    {
+      "id": "unknown-provider-manual-review",
+      "locale": "id-ID",
+      "action": "switch_default_payment_method",
+      "status": "manual_review",
+      "allowedActions": [],
+      "reasonCode": "UNKNOWN_PAYMENT_METHOD_PROVIDER"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "screenContractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+  "screenId": "orderai.payment_method_management",
+  "dataBoundary": "DEMO_MOCK",
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "providerBoundary": {
+    "requiredAdapter": "IPaymentProvider",
+    "existingCapabilities": ["create_payment", "get_status"],
+    "paymentMethodVault": "owner_gate"
+  },
+  "requiredViews": [
+    "payment_method_list",
+    "add_method_request",
+    "switch_default_request",
+    "update_method_settings_request",
+    "remove_method_request",
+    "manual_review_status"
+  ],
+  "actions": {
+    "add_payment_method": "owner_gate",
+    "switch_default_payment_method": "owner_gate",
+    "update_payment_method_settings": "owner_gate",
+    "remove_payment_method": "owner_gate"
+  },
+  "failClosed": {
+    "unknownProvider": "manual_review",
+    "missingVaultAuthority": "owner_gate",
+    "removeLastActiveMethod": "blocked",
+    "unknownMethodStatus": "manual_review",
+    "missingScope": "blocked"
+  },
+  "forbiddenClientFields": [
+    "companyId",
+    "storeId",
+    "userId",
+    "paymentToken",
+    "paymentReference",
+    "providerReference",
+    "cardNumber",
+    "bankAccount"
+  ],
+  "formalConnection": false
+}

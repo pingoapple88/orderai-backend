@@ -16,3 +16,6 @@
 - [x] **Day 1–30 基線核對**：已確認已推送的 self-service subscription lifecycle、T1 synthetic fixture、五語系、Acceptance evidence 與共享交接；未實測 connector／UI evidence 均已明確標記。
 - [x] **Day 31–60 增量契約**：已在不重做既有 model、parse、risk 或 Queue 的前提下，建立 principal-scoped 帳務歷史、額度用量、付款／發票 history 與錯誤狀態的最小 public read model。
 - [x] **Day 61–90 中央 Gate 準備**：已建立 sandbox provider、成本／用量、備份／恢復邊界與既有 EventBus mapping 的 local-only contract／fixture／harness；未建立正式 connector、第五事件或外部連線。
+- [x] **付款方式自助管理 contract 增量**：已建立 `IPaymentProvider` provider-neutral、local-only 的新增、切換、修改、移除與 default selection screen contract；無 vault／migration／API 時，所有操作維持 `owner_gate`，unknown 為 `manual_review`。
+- [x] **付款方式 T1 展示交接資產**：已建立五語系 `DEMO_MOCK` screen contract／fixture／focused harness；待 T1 以 pinned commit 掛載並補 RWD、keyboard、ARIA-live、reduced-motion 與 customer-journey evidence。
+- [ ] **付款方式正式 self-service implementation Gate**：待中央核准 payment method vault／tokenization owner、`IPaymentProvider` extension、migration／tenant constraint／audit schema、sandbox 與 PCI／PII boundary 後，才可開發新增、切換、修改、移除 API。
