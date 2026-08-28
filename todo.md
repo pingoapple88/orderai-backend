@@ -5,3 +5,6 @@
 - [x] **T5 synthetic workflow fixture**：已建立 `tests/fixtures/demo_orderai.json`，涵蓋成功、malformed、0.84 覆核、0.86 通過、Provider error／timeout、retry、dead-letter 與 PII 遮蔽。
 - [x] **T5 Demo contract tests**：已新增只讀取 fixture 的驗證，確認無真實 PII、價格、外部 URL、OAuth、付款或正式服務設定。
 - [ ] **T5 Demo delivery**：contract tests、compile、diff、外連／秘密／影子掃描均已完成；待 commit、push 並回報給 T1。既有登入安全修正維持完全隔離。
+- [x] **T5 Week 1 screen contract**：已建立 `ORDERAI-UI-W2-01` 的 `orderai.parse_result`、`orderai.risk_review`、`orderai.queue` 三個 Screen View Model 與完整五語系 key。
+- [x] **T5 synthetic fixture 與 harness**：已建立六條全合成 parse／risk／review／retry／dead-letter／duplicate／empty 情境與無外連 adapter；focused harness 與既有 Demo contract 共 8 passed。
+- [ ] **T5 整合證據與共享更新**：完成 focused test、compile、diff、外連／秘密／影子掃描後，推送 T5 feature branch，並更新共享看板／Manifest 的 status、last_update、source_commit、next_action 與 cross-team request。

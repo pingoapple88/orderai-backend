@@ -1,0 +1,19 @@
+{
+  "screen_id": "orderai.parse_result",
+  "feature_id": "orderai",
+  "locale": "zh-Hant-TW",
+  "mode": "DEMO_MOCK",
+  "evidence_level": "MOCK",
+  "status": "success",
+  "title_key": "orderai.parse_result.title",
+  "subtitle_key": "orderai.parse_result.subtitle",
+  "data": {
+    "items": [{"product_name": "string", "quantity": "positive_integer", "amount_minor": "integer", "currency": "TWD", "catalog_status": "matched|unmatched", "confidence": "number"}],
+    "overall_confidence": "number_or_null",
+    "evidence_status": "complete|partial|missing"
+  },
+  "actions": [{"id": "orderai.view_risk_review", "label_key": "orderai.action.view_risk_review", "requires_confirmation": false}],
+  "error": null,
+  "audit_reference": "demo-audit-reference",
+  "updated_at": "2026-08-28T00:00:00Z"
+}

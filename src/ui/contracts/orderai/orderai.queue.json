@@ -1,0 +1,21 @@
+{
+  "screen_id": "orderai.queue",
+  "feature_id": "orderai",
+  "locale": "zh-Hant-TW",
+  "mode": "DEMO_MOCK",
+  "evidence_level": "MOCK",
+  "status": "processing",
+  "title_key": "orderai.queue.title",
+  "subtitle_key": "orderai.queue.subtitle",
+  "data": {
+    "queue_state": "queued|retrying|dead_letter|blocked|not_queued",
+    "deduplication_state": "accepted|duplicate_blocked",
+    "retry_count": "non_negative_integer",
+    "retry_limit": "positive_integer",
+    "queue_item_reference": "demo-safe-reference"
+  },
+  "actions": [{"id": "orderai.manual_retry", "label_key": "orderai.action.manual_retry", "requires_confirmation": true}],
+  "error": null,
+  "audit_reference": "demo-audit-reference",
+  "updated_at": "2026-08-28T00:00:00Z"
+}

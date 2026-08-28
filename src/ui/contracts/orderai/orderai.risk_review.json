@@ -1,0 +1,21 @@
+{
+  "screen_id": "orderai.risk_review",
+  "feature_id": "orderai",
+  "locale": "zh-Hant-TW",
+  "mode": "DEMO_MOCK",
+  "evidence_level": "MOCK",
+  "status": "needs_review",
+  "title_key": "orderai.risk_review.title",
+  "subtitle_key": "orderai.risk_review.subtitle",
+  "data": {
+    "risk_threshold": 0.85,
+    "risk_score": "number_or_null",
+    "reason_codes": ["stable_non_pii_code"],
+    "unmatched_items": ["synthetic_product_label"],
+    "automatic_approval": false
+  },
+  "actions": [{"id": "orderai.return_to_parse", "label_key": "orderai.action.return_to_parse", "requires_confirmation": false}],
+  "error": {"code": "ORDER_REQUIRES_MANUAL_REVIEW", "category": "VALIDATION", "retryable": false, "requires_reconciliation_or_manual_review": true, "message_key": "orderai.error.needs_review", "safe_for_user": true},
+  "audit_reference": "demo-audit-reference",
+  "updated_at": "2026-08-28T00:00:00Z"
+}
