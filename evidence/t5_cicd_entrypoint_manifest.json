@@ -1,0 +1,76 @@
+{
+  "schema_version": "T5-CICD-EVIDENCE-01",
+  "run_id": "t5-be55b97-20260828T114805Z",
+  "team": "T5",
+  "repository": "pingoapple88/orderai-backend",
+  "branch": "feat/t5-orderai-cicd-evidence",
+  "head_40_chars": "be55b97fe3ba2f9bcf4437548667118434188651",
+  "parent_40_chars": "091235dbb0f09303cb216c6b2cf30f4f1ffb8058",
+  "triggered_at_utc": "2026-08-28T11:48:05.167065Z",
+  "workflow_version": "T5-CICD-EVIDENCE-01",
+  "test_command": "/usr/bin/python3 -m pytest -q tests/test_parse_normalizer.py tests/test_parse_evaluation.py tests/test_i18n_contract.py tests/ui/orderai/test_orderai_ui_harness.py tests/ui/orderai/test_orderai_screen_renderer.py tests/test_demo_orderai_contract.py",
+  "compile_command": "/usr/bin/python3 -m compileall -q src tests/ui/orderai",
+  "diff_check_command": "git diff --check",
+  "scan_command": "python3 ci/t5_orderai_ui_checks.py --output evidence/t5_cicd_entrypoint_manifest.json",
+  "fixture_path": "src/ui/fixtures/orderai/orderai_screen_scenarios.json",
+  "screen_contract_version": "ORDERAI-UI-W2-01",
+  "harness_path": "tests/ui/orderai/test_orderai_ui_harness.py; tests/ui/orderai/test_orderai_screen_renderer.py",
+  "required_env_names_only": [],
+  "expected_exit_code": {
+    "test": 0,
+    "compile": 0,
+    "diff_check": 0,
+    "scan": 0
+  },
+  "actual_exit_code": {
+    "test": 0,
+    "compile": 0,
+    "diff_check": 0,
+    "scan": 0
+  },
+  "evidence_paths": [
+    "evidence/t5_cicd_entrypoint_manifest.json",
+    "evidence/t5_cicd_entrypoint_run.log"
+  ],
+  "rollback_reference": "091235dbb0f09303cb216c6b2cf30f4f1ffb8058",
+  "open_todos": [
+    "[TODO: 待人工確認] 獨立 OAuth PR #22 尚未合併至 main；完整 pytest 的既有 Auth state-cookie failure 不可夾帶至 T5。",
+    "[TODO: 待 Auth baseline 解鎖] 完整 pytest 依現有 tests/conftest 的 Alembic／可丟棄 DB 前置與獨立 OAuth baseline 處理；本 CI entrypoint 僅執行不需資料庫的 synthetic focused suite。",
+    "[TODO: 待 T1 接入] T1 需以 pinned manifest 掛載三個 OrderAI local screen assets，並提供瀏覽器證據。"
+  ],
+  "cross_team_requests": [
+    "XREQ-0002: T5→T1 local renderer、CSS、interaction 與 fixture 接入。"
+  ],
+  "checks": {
+    "test": {
+      "command": "/usr/bin/python3 -m pytest -q tests/test_parse_normalizer.py tests/test_parse_evaluation.py tests/test_i18n_contract.py tests/ui/orderai/test_orderai_ui_harness.py tests/ui/orderai/test_orderai_screen_renderer.py tests/test_demo_orderai_contract.py",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout": "..................................                                       [100%]\n34 passed in 0.34s\n",
+      "stderr": ""
+    },
+    "compile": {
+      "command": "/usr/bin/python3 -m compileall -q src tests/ui/orderai",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "scan": {
+      "command": "python3 ci/t5_orderai_ui_checks.py --output evidence/t5_cicd_entrypoint_manifest.json",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "findings": []
+    }
+  },
+  "blocking_level": "READY_FOR_R1",
+  "redaction_status": "SYNTHETIC_ONLY",
+  "external_connection_status": "MATCH=NO"
+}
