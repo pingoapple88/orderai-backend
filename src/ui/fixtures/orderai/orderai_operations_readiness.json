@@ -1,0 +1,22 @@
+{
+  "fixtureVersion": "ORDERAI-OPERATIONS-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-OPERATIONS-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scenarios": [
+    {
+      "scenarioId": "local_sandbox_provider_ready",
+      "provider": {"mode": "local_mock_only", "status": "ready_for_synthetic_test"},
+      "usageAndCost": {"usageStatus": "available", "costStatus": "manual_review", "costMinor": null},
+      "backupRecovery": {"status": "owner_gate", "dataBoundary": "no_production_data"},
+      "eventBus": {"mode": "mapping_only", "publishedEvents": ["order.created", "order.updated", "order.confirmed"]}
+    },
+    {
+      "scenarioId": "unknown_provider_fails_closed",
+      "provider": {"mode": "unconfigured", "status": "manual_review"},
+      "usageAndCost": {"usageStatus": "manual_review", "costStatus": "manual_review", "costMinor": null},
+      "backupRecovery": {"status": "owner_gate", "dataBoundary": "no_production_data"},
+      "eventBus": {"mode": "mapping_only", "publishedEvents": ["order.created", "order.updated", "order.confirmed"]}
+    }
+  ]
+}

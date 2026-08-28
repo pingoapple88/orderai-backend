@@ -6,7 +6,16 @@ from app.core.database import get_db
 from app.core.deps import get_current_principal
 from app.core.response import success_response
 from app.providers import get_invoice_provider, get_payment_provider, get_subscription_provider
-from app.schemas import InvoiceRequestCreate, InvoiceStatusOut, SubscriptionActionCreate, SubscriptionIntentCreate, SubscriptionOut
+from app.schemas import (
+    BillingHistoryOut,
+    InvoiceHistoryOut,
+    InvoiceRequestCreate,
+    InvoiceStatusOut,
+    SubscriptionActionCreate,
+    SubscriptionIntentCreate,
+    SubscriptionOut,
+    UsageStatusOut,
+)
 from app.services import subscription_service
 
 
@@ -55,6 +64,24 @@ def subscription_status(
     return success_response(_serialize(subscription, plan, user, payment_status, invoice_status))
 
 
+@router.get("/billing-history")
+def billing_history(
+    principal: dict = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    records = subscription_service.billing_history_for_principal(db, principal=principal)
+    return success_response(BillingHistoryOut(records=records).model_dump(by_alias=True))
+
+
+@router.get("/usage")
+def usage_status(
+    principal: dict = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = subscription_service.usage_status_for_principal(db, principal=principal)
+    return success_response(UsageStatusOut(**result).model_dump(by_alias=True))
+
+
 @router.post("/actions")
 def subscription_action(
     payload: SubscriptionActionCreate,
@@ -97,3 +124,12 @@ def latest_invoice(
 ) -> dict:
     invoice = subscription_service.latest_invoice_for_principal(db, principal=principal)
     return success_response(InvoiceStatusOut.model_validate(invoice).model_dump(by_alias=True))
+
+
+@router.get("/invoices")
+def invoice_history(
+    principal: dict = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    records = subscription_service.invoice_history_for_principal(db, principal=principal)
+    return success_response(InvoiceHistoryOut(records=records).model_dump(by_alias=True))

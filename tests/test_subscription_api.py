@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_principal
 from app.core.interfaces.payment_provider import IPaymentProvider, PaymentResult
 from app.main import app
-from app.models import Company, Plan, Store, User
+from app.models import AIUsageLog, Company, Plan, Store, User
 from app.providers.local_subscription import LocalManualReviewInvoiceProvider, LocalSubscriptionProvider
 
 
@@ -63,5 +63,28 @@ def test_subscription_api_uses_principal_scope_and_returns_minimal_camel_case_da
         assert invoice_data["status"] == "manual_review"
         assert invoice_data["amountMinor"] == 20000
         assert "companyId" not in invoice_data and "subscriptionId" not in invoice_data
+
+        usage = client.get("/api/v1/orderai/subscriptions/usage")
+        assert usage.status_code == 200
+        usage_data = usage.json()["data"]
+        assert usage_data == {
+            "used": 0,
+            "limit": 50,
+            "remaining": 50,
+            "status": "available",
+            "cycleStartedAt": usage_data["cycleStartedAt"],
+        }
+        assert usage_data["cycleStartedAt"].endswith("Z")
+
+        history = client.get("/api/v1/orderai/subscriptions/billing-history")
+        assert history.status_code == 200
+        history_item = history.json()["data"]["records"][0]
+        assert history_item["amountMinor"] == 20000
+        assert history_item["status"] == "paid"
+        assert {"paymentReference", "providerReference", "description", "companyId", "storeId", "userId"}.isdisjoint(history_item)
+
+        invoice_history = client.get("/api/v1/orderai/subscriptions/invoices")
+        assert invoice_history.status_code == 200
+        assert invoice_history.json()["data"]["records"] == [invoice_data]
     finally:
         app.dependency_overrides.clear()

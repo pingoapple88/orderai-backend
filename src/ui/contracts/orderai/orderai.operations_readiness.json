@@ -1,0 +1,27 @@
+{
+  "screenContractVersion": "ORDERAI-OPERATIONS-W2-01",
+  "screenId": "orderai.operations_readiness",
+  "dataBoundary": "DEMO_MOCK",
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "currencyRule": "integer_minor_units_only",
+  "timeRule": "UTC_RFC3339_only",
+  "requiredViews": [
+    "sandbox_provider_readiness",
+    "usage_and_cost_status",
+    "backup_recovery_boundary",
+    "event_bus_mapping"
+  ],
+  "failClosed": {
+    "unknownProvider": "manual_review",
+    "unknownCost": "manual_review",
+    "backupRecovery": "owner_gate",
+    "unmappedEvent": "blocked"
+  },
+  "eventBusMapping": {
+    "publishedEvents": ["order.created", "order.updated", "order.confirmed"],
+    "subscriptionEvents": [],
+    "mode": "mapping_only"
+  },
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "paymentReference", "providerReference"]
+}

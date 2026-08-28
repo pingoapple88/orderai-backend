@@ -217,3 +217,26 @@ class InvoiceStatusOut(CamelModel):
     currency: str
     issued_at: Optional[datetime] = None
     due_at: Optional[datetime] = None
+
+
+class BillingHistoryItemOut(CamelModel):
+    amount_minor: Optional[int] = None
+    currency: str
+    status: str
+    created_at: datetime
+
+
+class BillingHistoryOut(CamelModel):
+    records: list[BillingHistoryItemOut]
+
+
+class UsageStatusOut(CamelModel):
+    used: int
+    limit: Optional[int] = None
+    remaining: Optional[int] = None
+    status: Literal["available", "exhausted", "manual_review"]
+    cycle_started_at: datetime
+
+
+class InvoiceHistoryOut(CamelModel):
+    records: list[InvoiceStatusOut]

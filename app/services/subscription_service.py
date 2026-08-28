@@ -5,19 +5,19 @@ unknown external status as entitlement activation and never accepts a client sco
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.interfaces.invoice_provider import IInvoiceProvider, InvoiceRequest
 from app.core.interfaces.payment_provider import IPaymentProvider, PaymentRequest
 from app.core.interfaces.subscription_provider import ISubscriptionProvider, SubscriptionIntent
 from app.core.config import get_settings
-from app.models import AuditLog, BillingRecord, InvoiceRecord, Plan, Store, SubscriptionRecord, User
+from app.models import AIUsageLog, AuditLog, BillingRecord, InvoiceRecord, Plan, Store, SubscriptionRecord, User
 
 
 _PAYMENT_STATUS = {"pending", "paid", "failed"}
@@ -28,10 +28,25 @@ _ENTITLEMENT_BY_SUBSCRIPTION_STATUS = {
     "canceled": "inactive",
     "manual_review": "manual_review",
 }
+_BILLING_STATUS = {"pending", "paid", "failed", "manual_review"}
+_INVOICE_STATUS = {"pending", "issued", "manual_review", "void"}
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime | None) -> datetime:
+    """Normalise legacy naive persistence timestamps before public serialization."""
+    if value is None:
+        return _utcnow()
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _safe_minor(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 def _idempotency(namespace: str, company_id: int, key: str) -> str:
@@ -402,3 +417,74 @@ def latest_invoice_for_principal(db: Session, *, principal: dict) -> InvoiceReco
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
+
+
+def billing_history_for_principal(db: Session, *, principal: dict) -> list[dict]:
+    """Returns principal-scoped billing history without payment references or descriptions."""
+    user, store, _ = _scope(db, principal)
+    records = db.execute(
+        select(BillingRecord)
+        .where(BillingRecord.user_id == user.id, BillingRecord.store_id == store.id)
+        .order_by(BillingRecord.id.desc())
+        .limit(50)
+    ).scalars().all()
+    return [
+        {
+            "amount_minor": _safe_minor(record.amount),
+            "currency": record.currency if isinstance(record.currency, str) and len(record.currency) == 3 else "TWD",
+            "status": record.status if record.status in _BILLING_STATUS else "manual_review",
+            "created_at": _as_utc(record.created_at),
+        }
+        for record in records
+    ]
+
+
+def usage_status_for_principal(db: Session, *, principal: dict) -> dict:
+    """Returns current UTC-month usage; invalid quota data remains manual_review."""
+    user, store, _ = _scope(db, principal)
+    subscription, plan, _, _, _ = status_for_principal(db, principal=principal)
+    cycle_started_at = _utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    used_value = db.execute(
+        select(func.coalesce(func.sum(AIUsageLog.usage_count), 0)).where(
+            AIUsageLog.user_id == user.id,
+            AIUsageLog.store_id == store.id,
+            AIUsageLog.usage_date >= date(cycle_started_at.year, cycle_started_at.month, 1),
+        )
+    ).scalar_one()
+    used = _safe_minor(used_value)
+    limit = _safe_minor(plan.ai_extraction_limit)
+    if used is None or limit is None or subscription.entitlement_status != "active":
+        return {"used": used or 0, "limit": limit, "remaining": None, "status": "manual_review", "cycle_started_at": cycle_started_at}
+    remaining = max(0, limit - used)
+    return {
+        "used": used,
+        "limit": limit,
+        "remaining": remaining,
+        "status": "available" if remaining > 0 else "exhausted",
+        "cycle_started_at": cycle_started_at,
+    }
+
+
+def invoice_history_for_principal(db: Session, *, principal: dict) -> list[dict]:
+    """Returns principal-scoped invoice status history without provider references or IDs."""
+    user, store, company_id = _scope(db, principal)
+    records = db.execute(
+        select(InvoiceRecord)
+        .where(
+            InvoiceRecord.company_id == company_id,
+            InvoiceRecord.store_id == store.id,
+            InvoiceRecord.user_id == user.id,
+        )
+        .order_by(InvoiceRecord.id.desc())
+        .limit(50)
+    ).scalars().all()
+    return [
+        {
+            "status": record.status if record.status in _INVOICE_STATUS else "manual_review",
+            "amount_minor": _safe_minor(record.amount_minor) or 0,
+            "currency": record.currency if isinstance(record.currency, str) and len(record.currency) == 3 else "TWD",
+            "issued_at": _as_utc(record.issued_at) if record.issued_at else None,
+            "due_at": _as_utc(record.due_at) if record.due_at else None,
+        }
+        for record in records
+    ]

@@ -13,3 +13,6 @@
 - [ ] **環境範例交付**：待依受控設定流程把 names-only `SUBSCRIPTION_PROVIDER`、`INVOICE_PROVIDER`、`SUBSCRIPTION_PERIOD_DAYS` 同步至版本化 `.env.example`，不得填入 key、URL 或實值憑證。
 - [ ] **T1 實際展示接入**：待 T1 以 pinned manifest 掛載 subscription lifecycle 與既有 parse／risk／Queue screens，補 1440×900、390×844、keyboard、ARIA live 與 reduced-motion evidence。
 - [ ] **中央 connector Gate**：待中央確認 payment／subscription／invoice owner、sandbox、callback authority、invoice／tax policy 與 deployment approval；解除前維持 local mock／manual review。
+- [ ] **Day 1–30 基線核對**：確認已推送的 self-service subscription lifecycle、T1 synthetic fixture、五語系、Acceptance evidence 與共享交接仍一致，並標記 sandbox-only／未實測項。
+- [ ] **Day 31–60 增量契約**：在不重做既有 model、parse、risk 或 Queue 的前提下，評估帳務歷史、額度用量、付款／發票查詢與客服錯誤狀態的最小 public contract／fixture 缺口。
+- [ ] **Day 61–90 中央 Gate 準備**：僅準備 sandbox provider、成本／用量、備份／恢復邊界與 EventBus mapping 的 owner／contract／測試環境需求，不建立正式 connector、第五事件或外部連線。
