@@ -1,0 +1,25 @@
+{
+  "projection_contract_version": "ORDERAI-SELF-SERVICE-PROJECTION-W2-01",
+  "screen_id": "orderai.self_service_entry",
+  "feature_id": "orderai",
+  "locale": "zh-Hant-TW",
+  "mode": "DEMO_MOCK",
+  "evidence_level": "MOCK",
+  "data_classification": "synthetic",
+  "formal_connection": false,
+  "status": "pending_activation",
+  "status_key": "orderai.self_service.status.pending_activation",
+  "title_key": "orderai.self_service.title",
+  "subtitle_key": "orderai.self_service.subtitle",
+  "data": {
+    "channels": [
+      {"channel": "direct", "label_key": "orderai.self_service.channel.direct", "availability_key": "orderai.self_service.channel.available"},
+      {"channel": "dealer", "label_key": "orderai.self_service.channel.dealer", "availability_key": "orderai.self_service.channel.available"},
+      {"channel": "enterprise", "label_key": "orderai.self_service.channel.enterprise", "availability_key": "orderai.self_service.channel.available"}
+    ],
+    "entitlement": {"status": "pending_activation", "status_key": "orderai.self_service.status.pending_activation"},
+    "ai_quota": {"sample_used": 12, "sample_limit": 50, "unit_key": "orderai.self_service.quota_unit"},
+    "billing": {"payment_status": "not_connected", "payment_status_key": "orderai.self_service.billing.not_connected", "invoice_status": "not_available", "invoice_status_key": "orderai.self_service.invoice.not_available"},
+    "scope_authority_key": "orderai.self_service.scope.server_principal"
+  }
+}

@@ -20,6 +20,44 @@ class OrderAIScreenRenderer:
         panels = "".join(self._render_model(model, labels) for model in models)
         return f'<main class="mc-orderai-screens" data-scenario="{escape(scenario_id)}">{panels}</main>'
 
+    def render_self_service_entry(self, requested_locale: str | None = None) -> str:
+        """Renders a local-only product entry projection for T1 to embed in the Demo shell."""
+        model = self._adapter.self_service_model(requested_locale)
+        labels = self._adapter.load_self_service_labels(requested_locale)
+        channels = "".join(
+            f'<li><strong>{self._label(labels, option["label_key"])}</strong><span>{self._label(labels, option["availability_key"])}</span></li>'
+            for option in model["data"]["channels"]
+        )
+        quota = model["data"]["ai_quota"]
+        billing = model["data"]["billing"]
+        return (
+            f'<section class="mc-orderai-panel mc-self-service-entry" id="orderai-self-service-entry" '
+            f'data-screen-id="{escape(model["screen_id"])}" data-status="{escape(model["status"])}" '
+            f'aria-labelledby="orderai-self-service-entry-title">'
+            f'<p class="mc-demo-badge" aria-label="{self._label(labels, "orderai.self_service.badge_aria")}">'
+            f'<span>{self._label(labels, "orderai.self_service.demo")}</span>'
+            f'<span>{self._label(labels, "orderai.self_service.formal")}</span></p>'
+            f'<header><p class="mc-screen-kicker">{escape(model["screen_id"])}</p>'
+            f'<h2 id="orderai-self-service-entry-title">{self._label(labels, model["title_key"])}</h2>'
+            f'<p>{self._label(labels, model["subtitle_key"])}</p>'
+            f'<span class="mc-status-badge" role="status">{self._label(labels, model["status_key"])}</span></header>'
+            f'<div class="mc-screen-data"><h3>{self._label(labels, "orderai.self_service.channels")}</h3><ul class="mc-item-list">{channels}</ul>'
+            f'<dl class="mc-risk-data"><div><dt>{self._label(labels, "orderai.self_service.entitlement")}</dt>'
+            f'<dd>{self._label(labels, model["data"]["entitlement"]["status_key"])}</dd></div>'
+            f'<div><dt>{self._label(labels, "orderai.self_service.quota")}</dt><dd>{quota["sample_used"]}/{quota["sample_limit"]} '
+            f'{self._label(labels, quota["unit_key"])}</dd></div>'
+            f'<div><dt>{self._label(labels, "orderai.self_service.billing")}</dt><dd>{self._label(labels, billing["payment_status_key"])}</dd></div>'
+            f'<div><dt>{self._label(labels, "orderai.self_service.invoice")}</dt><dd>{self._label(labels, billing["invoice_status_key"])}</dd></div>'
+            f'<div><dt>{self._label(labels, "orderai.self_service.scope")}</dt><dd>{self._label(labels, model["data"]["scope_authority_key"])}</dd></div></dl></div>'
+            f'<nav class="mc-screen-actions" aria-label="{self._label(labels, "orderai.self_service.actions_aria")}">'
+            f'<button class="mc-action-button" type="button" data-action-id="orderai.start_synthetic_parse" '
+            f'data-requires-confirmation="false" data-result-state="loading" '
+            f'data-result-label="{self._label(labels, "orderai.self_service.loading")}" '
+            f'data-action-label="{self._label(labels, "orderai.self_service.start_parse")}" '
+            f'data-target-screen="orderai-parse_result">{self._label(labels, "orderai.self_service.start_parse")}</button></nav>'
+            f'<p class="mc-action-feedback" role="status" aria-live="polite" hidden></p></section>'
+        )
+
     def _render_model(self, model: dict[str, Any], labels: dict[str, str]) -> str:
         title = self._label(labels, model["title_key"])
         subtitle = self._label(labels, model.get("subtitle_key"))

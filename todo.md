@@ -15,3 +15,8 @@
 - [x] **T5 CI/CD 實證**：已實際執行 entrypoint 與 contract tests；synthetic focused test、compile、diff check、精準 scan 均為 exit 0，entrypoint 輸出 `READY_FOR_R1`。待將 evidence 提交、推送與共享文件回填。
 - [ ] **T5 self-service 展示增量**：讀取最新直接開發啟動指令後，只補齊輸入、解析、approved、needs_review、Provider error／timeout、retry 與 dead-letter 的 Screen View Model／fixture／T1 接點，不修改既有核心硬化。
 - [ ] **首個增量交接**：以最小 smoke 實證新增 synthetic 展示情境後，提交並推送 T5 feature branch，立即更新共享看板的 status、last_update、source_commit、next_action 與 cross-team request。
+- [ ] **T5 現況缺口核對**：重新讀取 T5 工單、共享看板與整合 Manifest，確認目前已交付的七個 synthetic 情境與三個 screen contract 是否仍缺少本輪指定展示欄位。
+- [ ] **T5 展示最小增量**：僅對確認缺口加入新的 local-only contract／fixture／renderer 測試，完成必要 smoke、feature commit 與共享看板回填；OAuth 與核心防禦維持零變更。
+- [ ] **最新 T5 個別指令執行**：讀取附件的 T5 指令段落與最新共享基準，僅完成其尚未交付的 OrderAI UI／fixture／harness 或 evidence 項目，並以實際 SHA 與測試結果回填共享文件。
+- [ ] **T5 30 天基線核對**：盤點既有 module API、plans、billing records、Payment Provider、parse、risk、Queue 與 self-service 展示 assets，標示可延用路徑與本週無法以 synthetic／Mock 完成的中央 Gate。
+- [ ] **T5 自助產品展示交接**：僅以既有資料模型的 synthetic projection 補齊獨立入口、三通路、AI 額度／entitlement、客戶／發票資料 screen contract 與 T1 handoff；不得建立第二套 plans、payment、invoice、ERP 或 migration。

@@ -14,6 +14,8 @@ SCREEN_IDS = frozenset({"orderai.parse_result", "orderai.risk_review", "orderai.
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _FIXTURE_PATH = _REPOSITORY_ROOT / "src" / "ui" / "fixtures" / "orderai" / "orderai_screen_scenarios.json"
 _LOCALE_DIRECTORY = _REPOSITORY_ROOT / "src" / "ui" / "locales" / "orderai"
+_SELF_SERVICE_FIXTURE_PATH = _REPOSITORY_ROOT / "src" / "ui" / "fixtures" / "orderai" / "orderai_self_service_projection.json"
+_SELF_SERVICE_LOCALE_DIRECTORY = _LOCALE_DIRECTORY / "self_service"
 
 
 class OrderAIDemoAdapter:
@@ -39,3 +41,13 @@ class OrderAIDemoAdapter:
                     model["locale"] = locale
                 return models
         raise KeyError(f"Unknown synthetic scenario: {scenario_id}")
+
+    def self_service_model(self, requested_locale: str | None = None) -> dict[str, Any]:
+        """Returns one safe synthetic self-service projection without billing or tenant authority."""
+        model = json.loads(_SELF_SERVICE_FIXTURE_PATH.read_text(encoding="utf-8"))
+        model["locale"] = self.normalize_locale(requested_locale)
+        return deepcopy(model)
+
+    def load_self_service_labels(self, requested_locale: str | None = None) -> dict[str, str]:
+        locale = self.normalize_locale(requested_locale)
+        return json.loads((_SELF_SERVICE_LOCALE_DIRECTORY / f"{locale}.json").read_text(encoding="utf-8"))
