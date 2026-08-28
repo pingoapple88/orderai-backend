@@ -11,3 +11,5 @@
 - [x] **本月 T5 週次核對**：已讀取最新 T1～T5 商業節點加速派工、T5 Week 1 工單、共享看板與整合 Manifest；確認 Week 1 仍需可展示的輸入、approved 與可操作 local screen assets。
 - [x] **本月 T5 增量交付**：已補齊 local-only renderer、CSS、互動 script、合成輸入 loading action、0.86 approved decision、dead-letter 確認對話框與 12 項 focused harness；未重做既有 backend 硬化。
 - [ ] **本月共享同步**：以本週實際 branch、HEAD、測試、掃描、rollback 與跨隊 request 更新 T5 row，不推測其他 Team 或正式環境狀態。
+- [x] **T5 CI/CD 接點**：已建立 repository-local `ci/t5_orderai_ui_checks.py`、`T5-CICD-EVIDENCE-01` manifest schema、least-privilege workflow 與接點文件。
+- [x] **T5 CI/CD 實證**：已實際執行 entrypoint 與 contract tests；synthetic focused test、compile、diff check、精準 scan 均為 exit 0，entrypoint 輸出 `READY_FOR_R1`。待將 evidence 提交、推送與共享文件回填。
