@@ -13,3 +13,5 @@
 - [ ] **本月共享同步**：以本週實際 branch、HEAD、測試、掃描、rollback 與跨隊 request 更新 T5 row，不推測其他 Team 或正式環境狀態。
 - [x] **T5 CI/CD 接點**：已建立 repository-local `ci/t5_orderai_ui_checks.py`、`T5-CICD-EVIDENCE-01` manifest schema、least-privilege workflow 與接點文件。
 - [x] **T5 CI/CD 實證**：已實際執行 entrypoint 與 contract tests；synthetic focused test、compile、diff check、精準 scan 均為 exit 0，entrypoint 輸出 `READY_FOR_R1`。待將 evidence 提交、推送與共享文件回填。
+- [ ] **T5 self-service 展示增量**：讀取最新直接開發啟動指令後，只補齊輸入、解析、approved、needs_review、Provider error／timeout、retry 與 dead-letter 的 Screen View Model／fixture／T1 接點，不修改既有核心硬化。
+- [ ] **首個增量交接**：以最小 smoke 實證新增 synthetic 展示情境後，提交並推送 T5 feature branch，立即更新共享看板的 status、last_update、source_commit、next_action 與 cross-team request。

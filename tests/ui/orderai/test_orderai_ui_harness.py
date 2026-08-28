@@ -55,7 +55,7 @@ def test_fixture_has_safe_five_locale_screen_models_and_required_states():
     assert fixture["meta"]["formal_connection"] is False
     assert set(fixture["meta"]["supported_locales"]) == SUPPORTED_LOCALES
     scenarios = {scenario["scenario_id"]: scenario for scenario in fixture["scenarios"]}
-    assert {"parse_success", "low_confidence_unmatched", "provider_timeout_retry", "dead_letter_manual_retry", "duplicate_event_blocked", "empty_state"} == set(scenarios)
+    assert {"parse_success", "low_confidence_unmatched", "provider_timeout_retry", "provider_error_needs_review", "dead_letter_manual_retry", "duplicate_event_blocked", "empty_state"} == set(scenarios)
     for scenario in scenarios.values():
         assert {model["screen_id"] for model in scenario["view_models"]} == SCREEN_IDS
         for model in scenario["view_models"]:
@@ -75,6 +75,11 @@ def test_fixture_has_safe_five_locale_screen_models_and_required_states():
     dead_letter = next(model for model in scenarios["dead_letter_manual_retry"]["view_models"] if model["screen_id"] == "orderai.queue")
     assert dead_letter["data"]["queue_state"] == "dead_letter"
     assert dead_letter["actions"] == [{"id": "orderai.manual_retry", "label_key": "orderai.action.manual_retry", "requires_confirmation": True}]
+    provider_error = next(model for model in scenarios["provider_error_needs_review"]["view_models"] if model["screen_id"] == "orderai.risk_review")
+    assert provider_error["status"] == "needs_review"
+    assert provider_error["data"]["approval_state"] == "needs_review"
+    assert provider_error["data"]["automatic_approval"] is False
+    assert provider_error["error"]["code"] == "PROVIDER_ERROR"
 
 
 def test_adapter_normalizes_locale_and_never_accepts_company_scope():
