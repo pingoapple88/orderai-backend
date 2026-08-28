@@ -1,0 +1,28 @@
+# T5 Day 31–90 最小 smoke evidence
+
+- source_commit: `1df46be561613642b61329652359e0bacce75252`
+- rollback_reference: `06df1c894b6082173a50e00e54aeb82f4eaf4e88`
+- data_boundary: `local_disposable_postgresql_and_demo_mock_only`
+- timestamp_utc: `2026-08-28T16:11:31Z`
+
+## Executed affected smoke
+
+`pytest -q tests/test_subscription_service.py tests/test_subscription_api.py tests/test_subscription_queries.py tests/ui/orderai/test_subscription_lifecycle_contract.py tests/ui/orderai/test_operations_readiness_contract.py`
+
+Result: `13 passed, 1 warning`; exit code `0`.
+
+`python3 -m compileall -q app tests src`
+
+Result: exit code `0`.
+
+`git diff --check HEAD^ HEAD`
+
+Result: exit code `0`.
+
+## Precise changed-asset scan
+
+- external_or_secret: `MATCH=NO`
+- shadow_or_analytics: `MATCH=NO`
+- unapproved_event: `MATCH=NO`
+
+The scan applied only to the Day 31–90 source commit paths. Contract declarations of forbidden client fields are security schema, not runtime data.
