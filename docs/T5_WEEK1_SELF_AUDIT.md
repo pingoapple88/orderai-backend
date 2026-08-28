@@ -7,7 +7,7 @@
 
 ## 交付範圍
 
-本次交付是供 T1 掛載的 OrderAI **Screen View Model、全合成 fixture、五語系 key 與離線 harness**。目前 OrderAI backend 沒有可獨立呈現瀏覽器畫面的 UI runtime；因此 T5 不建立第二套網頁或直接接入正式後端。T1 應依交接 contract 在統一 AppShell 實際呈現三個 screen。
+本次交付是供 T1 掛載的 OrderAI **Screen View Model、全合成 fixture、五語系 key、local-only renderer、CSS、互動 script 與離線 harness**。T5 不直接接入正式後端；T1 應依交接 contract 在統一 AppShell 實際掛載三個 screen 與本地 assets。
 
 | screen_id | contract | fixture 支援狀態 |
 |---|---|---|
@@ -26,8 +26,8 @@
 | A5 設定與秘密 | PASS | 無新增 runtime 設定、正式 URL 或 secret。 |
 | B1／B2 變更邊界 | PASS | 新增內容限於 `src/ui`、`src/adapters/orderai_adapter.py`、`tests/ui/orderai` 與 T5 文件。未變更 OAuth、migration、核心事件或正式 service。 |
 | B3／B4 工作樹與產物 | PASS | 提交前清除可再生快取；未追蹤 SQLite、pyc 或 secret artifact。 |
-| C1 focused tests | PASS | `python3 -m pytest -q tests/ui/orderai/test_orderai_ui_harness.py tests/test_demo_orderai_contract.py`：8 passed，exit 0。 |
-| C2 受影響測試 | PASS | 新 UI package 為無 runtime／無 DB 的隔離 asset；上述 harness 為完整受影響範圍。 |
+| C1 focused tests | PASS | `python3 -m pytest -q tests/ui/orderai/test_orderai_ui_harness.py tests/ui/orderai/test_orderai_screen_renderer.py tests/test_demo_orderai_contract.py`：12 passed，exit 0。 |
+| C2 受影響測試 | PASS | local-only renderer、CSS、互動 script 與 fixture 沒有 backend runtime／DB 相依；上述 harness 為完整受影響範圍。 |
 | C3／C4 | PASS | `python3 -m compileall -q src tests/ui/orderai` 與 `git diff --check` 均 exit 0。 |
 | C5 inherited failures | PASS | 本輪 focused harness 無失敗；既有 OAuth baseline blocker 維持於獨立 Auth 範圍，未在本次測試或 diff 出現。 |
 | C6 狀態覆蓋 | PASS | fixture 涵蓋 success、empty、error、needs_review、manual_review、processing、blocked、timeout retry、dead-letter、duplicate。 |
@@ -40,7 +40,7 @@
 | D7／D8 fail-closed 與 PII | PASS | 0.84、未匹配、provider timeout、dead-letter、duplicate 均非自動核准；fixture、adapter 不含未遮蔽 PII。 |
 | E1／E2 | PASS | 所有 contract action 有穩定 ID 與結果狀態；六條全合成情境覆蓋各安全結果。 |
 | E3 | PASS | `zh-Hant-TW`、`en-US`、`th-TH`、`ja-JP`、`id-ID` 的 key set 完整相同；未知 locale fallback `zh-Hant-TW`。 |
-| E4／E5 瀏覽器呈現 | N/A（T1 接入） | 本 repo 無可執行 UI renderer；由 T1 在統一 AppShell 針對 1440×900、390×844、keyboard、ARIA live 與 reduced motion 提供實際畫面證據。 |
+| E4／E5 畫面與互動 | HANDOFF_READY | 本地 `OrderAIScreenRenderer`、CSS 與互動 script 已產出可近用 HTML fragment、status／DemoBadge、ARIA live、target focus 與 dead-letter ConfirmDialog；T1 接入後仍須提供 1440×900、390×844 與瀏覽器實跑證據。 |
 | E6 | PASS | 全部 model 固定 `mode: DEMO_MOCK`、`evidence_level: MOCK`、`formal_connection: false`。 |
 | E7 | PASS | `src/ui` 與 adapter 外連／CDN／tracking 掃描 0 matches。 |
 
@@ -62,6 +62,6 @@ T1 必須以 `src/ui/fixtures/orderai/orderai_screen_scenarios.json` 及 `OrderA
 
 | 類型 | 項目 |
 |---|---|
-| TODO | T1 取得本次 fixture 後，於統一 Demo AppShell 完成三條路由、桌機／手機畫面、keyboard、ARIA live 與客戶旅程 evidence。 |
+| TODO | T1 取得本次 local renderer、fixture 與互動 assets 後，於統一 Demo AppShell 完成三條路由、桌機／手機畫面與客戶旅程 evidence。 |
 | BLOCKED | 正式 LLM／LINE／Redis／PostgreSQL、OAuth PR 合併、main merge、部署及正式資料均不在本次 T5 範圍。 |
 | Next action | T1 將本文件與 fixture 加入其 pinned manifest；T5 接收整合回饋後只修正本分支的 screen contract／fixture／harness。 |

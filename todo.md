@@ -8,3 +8,6 @@
 - [x] **T5 Week 1 screen contract**：已建立 `ORDERAI-UI-W2-01` 的 `orderai.parse_result`、`orderai.risk_review`、`orderai.queue` 三個 Screen View Model 與完整五語系 key。
 - [x] **T5 synthetic fixture 與 harness**：已建立六條全合成 parse／risk／review／retry／dead-letter／duplicate／empty 情境與無外連 adapter；focused harness 與既有 Demo contract 共 8 passed。
 - [ ] **T5 整合證據與共享更新**：完成 focused test、compile、diff、外連／秘密／影子掃描後，推送 T5 feature branch，並更新共享看板／Manifest 的 status、last_update、source_commit、next_action 與 cross-team request。
+- [x] **本月 T5 週次核對**：已讀取最新 T1～T5 商業節點加速派工、T5 Week 1 工單、共享看板與整合 Manifest；確認 Week 1 仍需可展示的輸入、approved 與可操作 local screen assets。
+- [x] **本月 T5 增量交付**：已補齊 local-only renderer、CSS、互動 script、合成輸入 loading action、0.86 approved decision、dead-letter 確認對話框與 12 項 focused harness；未重做既有 backend 硬化。
+- [ ] **本月共享同步**：以本週實際 branch、HEAD、測試、掃描、rollback 與跨隊 request 更新 T5 row，不推測其他 Team 或正式環境狀態。

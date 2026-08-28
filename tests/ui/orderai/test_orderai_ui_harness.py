@@ -66,6 +66,12 @@ def test_fixture_has_safe_five_locale_screen_models_and_required_states():
     assert review["status"] == "needs_review"
     assert review["data"]["risk_score"] == 0.84
     assert review["data"]["unmatched_items"]
+    approved = next(model for model in scenarios["parse_success"]["view_models"] if model["screen_id"] == "orderai.risk_review")
+    assert approved["data"]["approval_state"] == "approved"
+    assert approved["data"]["automatic_approval"] is True
+    parsed = next(model for model in scenarios["parse_success"]["view_models"] if model["screen_id"] == "orderai.parse_result")
+    assert parsed["data"]["input_summary"]
+    assert any(action["id"] == "orderai.submit_synthetic_input" and action["result_state"] == "loading" for action in parsed["actions"])
     dead_letter = next(model for model in scenarios["dead_letter_manual_retry"]["view_models"] if model["screen_id"] == "orderai.queue")
     assert dead_letter["data"]["queue_state"] == "dead_letter"
     assert dead_letter["actions"] == [{"id": "orderai.manual_retry", "label_key": "orderai.action.manual_retry", "requires_confirmation": True}]
@@ -91,7 +97,10 @@ def test_amounts_quantities_and_queue_protection_are_fail_closed_display_values(
                 assert isinstance(item["quantity"], int) and item["quantity"] > 0
                 assert isinstance(item["amount_minor"], int)
                 assert not isinstance(item["amount_minor"], bool)
-            if model["screen_id"] == "orderai.risk_review":
+            if model["screen_id"] == "orderai.risk_review" and model["data"].get("approval_state") == "approved":
+                assert model["data"]["risk_score"] > model["data"]["risk_threshold"]
+                assert model["data"]["automatic_approval"] is True
+            elif model["screen_id"] == "orderai.risk_review":
                 assert model["data"]["automatic_approval"] is False
             if model["screen_id"] == "orderai.queue" and model["data"]["queue_state"] == "dead_letter":
                 assert model["status"] == "blocked"
