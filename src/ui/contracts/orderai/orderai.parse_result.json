@@ -1,0 +1,31 @@
+{
+  "screenContractVersion": "ORDERAI-PARSE-RESULT-W2-01",
+  "screenId": "orderai.parse_result",
+  "featureId": "orderai",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "timeRule": "UTC_RFC3339_only",
+  "providerBoundary": "ILLMProvider_status_projection_only",
+  "requiredViews": ["loading", "empty", "parse_approved", "parse_needs_review", "error", "blocked"],
+  "statusMapping": {
+    "highConfidenceMatched": "approved",
+    "lowConfidence": "needs_review",
+    "unmatchedItem": "needs_review",
+    "providerTimeout": "needs_review",
+    "missingTenantScope": "blocked"
+  },
+  "piiBoundary": {
+    "redactionRequired": true,
+    "displayOnlyTokens": ["[REDACTED_NAME]", "[REDACTED_PHONE]", "[REDACTED_EMAIL]"],
+    "rawSourceText": "forbidden"
+  },
+  "auditBoundary": {
+    "action": "ai.order.decision",
+    "permittedFields": ["status", "reason_codes", "threshold", "confidence_score", "provider", "item_count", "source_sha256"],
+    "rawPii": "forbidden"
+  },
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "rawMessage", "customerName", "customerPhone", "customerEmail", "lineUserId", "paymentToken", "providerReference"],
+  "eventBoundary": {"newEvents": [], "mode": "no_new_event"}
+}

@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-04",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-05",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -34,6 +34,21 @@
         "tests/test_queue_contract.py"
       ]
     },
+    "parseResult": {
+      "reuseMode": "REUSE_AS_IS",
+      "screenId": "orderai.parse_result",
+      "contractVersion": "ORDERAI-PARSE-RESULT-W2-01"
+    },
+    "riskReview": {
+      "reuseMode": "REUSE_AS_IS",
+      "screenId": "orderai.risk_review",
+      "contractVersion": "ORDERAI-RISK-REVIEW-W2-01"
+    },
+    "queue": {
+      "reuseMode": "REUSE_AS_IS",
+      "screenId": "orderai.queue",
+      "contractVersion": "ORDERAI-QUEUE-W2-01"
+    },
     "smartAgricultureExpo": {
       "reuseMode": "INTEGRATE_VIA_ADAPTER",
       "screenId": "orderai.smart_agri_expo",
@@ -49,6 +64,9 @@
     "invoice_credential_boundary",
     "payment_method_management_gate",
     "parse_risk_review_queue",
+    "parse_result",
+    "risk_review",
+    "queue",
     "smart_agriculture_expo"
   ],
   "failClosed": {

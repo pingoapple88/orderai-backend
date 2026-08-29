@@ -1,0 +1,18 @@
+{
+  "screenContractVersion": "ORDERAI-QUEUE-W2-01",
+  "screenId": "orderai.queue",
+  "featureId": "orderai",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "timeRule": "UTC_RFC3339_only",
+  "queueBoundary": {"adapter": "existing_queue_abstraction_only", "transport": "no_new_transport", "retryPolicy": "limited_retry_only", "deadLetter": "manual_review_only"},
+  "requiredViews": ["loading", "empty", "queued", "duplicate", "retrying", "dead_letter", "error", "blocked"],
+  "statusMapping": {"dedupeHit": "duplicate", "providerTimeout": "retrying", "retryLimitReached": "dead_letter", "tenantScopeUnavailable": "blocked", "unknownOutcome": "needs_review"},
+  "idempotencyBoundary": {"dedupeKey": "server_derived_line_event_hash_only", "clientDedupeKey": "forbidden", "retryPayload": "non_mutating"},
+  "piiBoundary": {"redactionRequired": true, "replyToken": "forbidden", "rawSourceText": "forbidden", "allowedEnvelopeFields": ["lineEventHash", "lineUserHash", "queueMeta.attempt"]},
+  "auditReference": {"action": "ai.order.decision", "source": "hash_only"},
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "replyToken", "rawMessage", "lineEventId", "customerName", "customerPhone", "customerEmail", "lineUserId"],
+  "eventBoundary": {"newEvents": [], "mode": "no_new_event"}
+}

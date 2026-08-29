@@ -28,3 +28,5 @@
 - [x] **重啟覆蓋核對**：已以 `79f33bd6c19f1380d48ec66560e2a3e6bf69117a` 對照指定 hardening lineage，確認獨立產品入口、三通路、AI entitlement、subscription、payment-method lifecycle、invoice／billing history 與 parse／risk／Queue T1 fixture 均已有可用 synthetic coverage；未重做既有產品核心。
 - [x] **智慧農業展 synthetic screen／fixture**：已新增農產團購建立、AI parse、risk／needs_review、即期品促銷建議、合成 FAQ／客服、方案／訂閱、付款／invoice status與entitlement的五語系 `DEMO_MOCK` screen contract／fixture／focused harness；未讀取未授權 PII，未接正式 LLM／LINE／payment／invoice。
 - [ ] **智慧農業展 T1 handoff**：已完成本輪 focused smoke與scan；待建立 Git snapshot並更新 T5 shared board／Manifest後，請 T1 以 pinned commit 掛載並回填路由／RWD／a11y evidence。
+- [x] **ROUND_1 parse／risk review／queue assets**：已建立 `orderai.parse_result`、`orderai.risk_review`、`orderai.queue` 的獨立五語系 `DEMO_MOCK` contract、fixture與focused harness，覆蓋高信心通過、low-confidence／unmatched fail-closed、needs_review、dead-letter、有限 retry、dedup、scope、PII redaction、UTC、idempotency、audit與loading／empty／error／blocked。
+- [ ] **ROUND_1 R1 handoff**：已完成 synthetic scoped smoke與scan；待 Git snapshot、T5 shared board／Manifest／evidence index同步後標示 `READY_FOR_R1`。資料庫相依的既有 risk／queue focused unit tests受本機 `MySQLdb` driver 缺失阻塞，未宣稱通過。

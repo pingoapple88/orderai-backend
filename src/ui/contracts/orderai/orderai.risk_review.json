@@ -1,0 +1,25 @@
+{
+  "screenContractVersion": "ORDERAI-RISK-REVIEW-W2-01",
+  "screenId": "orderai.risk_review",
+  "featureId": "orderai",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "timeRule": "UTC_RFC3339_only",
+  "riskThreshold": 0.85,
+  "requiredViews": ["loading", "empty", "approved", "needs_review", "error", "blocked"],
+  "statusMapping": {
+    "confidenceAtOrAboveThreshold": "approved",
+    "confidenceBelowThreshold": "needs_review",
+    "catalogProductUnmatched": "needs_review",
+    "catalogPriceMissing": "needs_review",
+    "providerError": "needs_review",
+    "tenantScopeUnavailable": "blocked"
+  },
+  "reviewBoundary": {"automaticApprovalForUnknown": false, "manualReviewRequired": true},
+  "idempotencyBoundary": {"source": "server_derived_line_event_hash_only", "clientIdempotencyKey": "forbidden"},
+  "auditReference": {"action": "ai.order.decision", "safeFields": ["source_sha256", "status", "reason_codes", "threshold", "confidence_score"], "rawContent": "forbidden"},
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "rawMessage", "lineEventId", "customerName", "customerPhone", "customerEmail", "lineUserId"],
+  "eventBoundary": {"newEvents": [], "mode": "no_new_event"}
+}

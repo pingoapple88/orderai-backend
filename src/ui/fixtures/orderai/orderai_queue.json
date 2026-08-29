@@ -1,0 +1,15 @@
+{
+  "fixtureVersion": "ORDERAI-QUEUE-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-QUEUE-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {"id": "queue-loading", "locale": "zh-Hant-TW", "view": "loading", "queueStatus": "loading", "allowedActions": [], "reasonCode": "SYNTHETIC_LOADING"},
+    {"id": "queue-empty", "locale": "en-US", "view": "empty", "queueStatus": "empty", "allowedActions": [], "reasonCode": "SYNTHETIC_EMPTY"},
+    {"id": "queue-dedup-duplicate", "locale": "th-TH", "view": "duplicate", "queueStatus": "duplicate", "dedupeReference": "line_event_hash_only", "queueAttempt": 0, "allowedActions": [], "reasonCode": "SYNTHETIC_DEDUPE_HIT"},
+    {"id": "queue-limited-retry", "locale": "ja-JP", "view": "retrying", "queueStatus": "retrying", "queueAttempt": 1, "retryLimit": 1, "allowedActions": [], "reasonCode": "provider_timeout"},
+    {"id": "queue-dead-letter-review", "locale": "id-ID", "view": "dead_letter", "queueStatus": "dead_letter", "queueAttempt": 2, "deadLetterAction": "manual_review_only", "allowedActions": [], "reasonCode": "provider_timeout"},
+    {"id": "queue-scope-blocked", "locale": "zh-Hant-TW", "view": "blocked", "queueStatus": "blocked", "allowedActions": [], "reasonCode": "tenant_scope_unavailable"},
+    {"id": "queue-provider-error", "locale": "en-US", "view": "error", "queueStatus": "needs_review", "allowedActions": [], "reasonCode": "provider_error"}
+  ]
+}

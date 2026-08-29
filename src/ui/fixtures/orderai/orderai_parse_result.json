@@ -1,0 +1,15 @@
+{
+  "fixtureVersion": "ORDERAI-PARSE-RESULT-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-PARSE-RESULT-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {"id": "parse-loading", "locale": "zh-Hant-TW", "view": "loading", "parseStatus": "loading", "allowedActions": [], "reasonCode": "SYNTHETIC_LOADING"},
+    {"id": "parse-approved-high-confidence", "locale": "en-US", "view": "parse_approved", "parseStatus": "approved", "confidenceScore": 0.85, "redactedPreview": "[REDACTED_NAME] vegetables x2", "auditReference": "source_sha256_only", "allowedActions": [], "reasonCode": "SYNTHETIC_HIGH_CONFIDENCE_MATCHED"},
+    {"id": "parse-low-confidence-review", "locale": "th-TH", "view": "parse_needs_review", "parseStatus": "needs_review", "confidenceScore": 0.84, "redactedPreview": "[REDACTED_PHONE] produce x1", "auditReference": "source_sha256_only", "allowedActions": [], "reasonCode": "confidence_below_threshold"},
+    {"id": "parse-unmatched-item-review", "locale": "ja-JP", "view": "parse_needs_review", "parseStatus": "needs_review", "redactedPreview": "[REDACTED_EMAIL] unknown item", "auditReference": "source_sha256_only", "allowedActions": [], "reasonCode": "catalog_product_unmatched"},
+    {"id": "parse-scope-blocked", "locale": "id-ID", "view": "blocked", "parseStatus": "blocked", "allowedActions": [], "reasonCode": "tenant_scope_unavailable"},
+    {"id": "parse-empty", "locale": "zh-Hant-TW", "view": "empty", "parseStatus": "empty", "allowedActions": [], "reasonCode": "SYNTHETIC_EMPTY"},
+    {"id": "parse-provider-error", "locale": "en-US", "view": "error", "parseStatus": "needs_review", "allowedActions": [], "reasonCode": "provider_error"}
+  ]
+}

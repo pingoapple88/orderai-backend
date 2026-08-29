@@ -1,0 +1,15 @@
+{
+  "fixtureVersion": "ORDERAI-RISK-REVIEW-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-RISK-REVIEW-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {"id": "risk-loading", "locale": "zh-Hant-TW", "view": "loading", "riskStatus": "loading", "allowedActions": [], "reasonCode": "SYNTHETIC_LOADING"},
+    {"id": "risk-approved-threshold-boundary", "locale": "en-US", "view": "approved", "riskStatus": "approved", "confidenceScore": 0.85, "threshold": 0.85, "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "allowedActions": [], "reasonCode": "SYNTHETIC_THRESHOLD_APPROVED"},
+    {"id": "risk-low-confidence-review", "locale": "th-TH", "view": "needs_review", "riskStatus": "needs_review", "confidenceScore": 0.84, "threshold": 0.85, "auditReference": "source_sha256_only", "allowedActions": [], "reasonCode": "confidence_below_threshold"},
+    {"id": "risk-unmatched-item-review", "locale": "ja-JP", "view": "needs_review", "riskStatus": "needs_review", "auditReference": "source_sha256_only", "allowedActions": [], "reasonCode": "catalog_product_unmatched"},
+    {"id": "risk-scope-blocked", "locale": "id-ID", "view": "blocked", "riskStatus": "blocked", "allowedActions": [], "reasonCode": "tenant_scope_unavailable"},
+    {"id": "risk-empty", "locale": "zh-Hant-TW", "view": "empty", "riskStatus": "empty", "allowedActions": [], "reasonCode": "SYNTHETIC_EMPTY"},
+    {"id": "risk-provider-timeout", "locale": "en-US", "view": "error", "riskStatus": "needs_review", "allowedActions": [], "reasonCode": "provider_timeout"}
+  ]
+}

@@ -1,0 +1,45 @@
+# T5 ROUND_1 parse／risk review／queue screen assets evidence
+
+- source_head_before_commit: `8df9f2a2af8cddd1c357ab3d767db94a3d0504a3`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
+- scope: `new_synthetic_contract_fixture_harness_only`
+- data_boundary: `DEMO_MOCK`
+- formal_connection: `false`
+
+## First focused core-plus-fixture attempt
+
+```text
+pytest -q tests/test_parse_evaluation.py tests/test_order_risk_service.py \
+  tests/test_queue_contract.py tests/ui/orderai/test_parse_risk_queue_contracts.py \
+  tests/ui/orderai/test_integration_entry_contract.py
+```
+
+Result: **exit code 2** during test collection. The unchanged `test_order_risk_service.py` and `test_queue_contract.py` import the existing database module, whose currently selected local URL requests the unavailable `MySQLdb` driver. This is a local test-environment dependency issue; no source, configuration, provider, or database was changed to bypass it.
+
+## Executed synthetic fallback
+
+```text
+pytest -q tests/test_parse_evaluation.py \
+  tests/ui/orderai/test_parse_risk_queue_contracts.py \
+  tests/ui/orderai/test_integration_entry_contract.py
+```
+
+Result: **`11 passed`**, exit code **`0`**.
+
+The fallback covers the no-database parse evaluation and all newly added `DEMO_MOCK` contract／fixture assertions. It does not claim a pass for the unchanged database-dependent risk／queue runtime suite.
+
+## Additional actual checks
+
+| Check | Result |
+|---|---|
+| JSON validation of all three new contracts／fixtures plus integration entry | PASS, exit code `0` |
+| `python3 -m compileall -q tests/ui/orderai` | PASS, exit code `0` |
+| `git diff --check` | PASS, exit code `0` |
+| external／secret scan | PASS, `MATCH=NO` |
+| fixture PII／credential payload scan | PASS, `MATCH=NO` |
+| shadow／analytics scan | PASS, `MATCH=NO` |
+| unapproved event scan | PASS, `MATCH=NO` |
+
+## Coverage and boundary
+
+The synthetic assets cover high-confidence approval at the existing 0.85 threshold, low confidence, unmatched catalog item, `needs_review`, provider timeout／error, scope block, loading, empty, duplicate, limited retry, dead letter, redacted preview, hash-only audit reference, server-derived idempotency reference and UTC rules. No raw PII, client authority, payment／invoice data, provider connection, transport, or new event is included.

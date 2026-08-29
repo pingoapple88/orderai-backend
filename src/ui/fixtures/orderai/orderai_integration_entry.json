@@ -1,6 +1,6 @@
 {
-  "fixtureVersion": "ORDERAI-INTEGRATION-FIXTURE-W2-04",
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-04",
+  "fixtureVersion": "ORDERAI-INTEGRATION-FIXTURE-W2-05",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-05",
   "dataBoundary": "DEMO_MOCK",
   "formalConnection": false,
   "scenarios": [

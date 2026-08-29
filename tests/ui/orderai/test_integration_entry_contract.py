@@ -11,7 +11,7 @@ LOCALES = {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
 
 def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
-    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-04"
+    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-05"
     assert contract["screenId"] == "orderai.integration_entry"
     assert contract["dataBoundary"] == "DEMO_MOCK"
     assert contract["formalConnection"] is False
@@ -31,7 +31,11 @@ def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
         "contractVersion": "ORDERAI-SMART-AGRI-EXPO-W2-01",
         "availability": "available_synthetic",
     }
+    assert baseline["parseResult"] == {"reuseMode": "REUSE_AS_IS", "screenId": "orderai.parse_result", "contractVersion": "ORDERAI-PARSE-RESULT-W2-01"}
+    assert baseline["riskReview"] == {"reuseMode": "REUSE_AS_IS", "screenId": "orderai.risk_review", "contractVersion": "ORDERAI-RISK-REVIEW-W2-01"}
+    assert baseline["queue"] == {"reuseMode": "REUSE_AS_IS", "screenId": "orderai.queue", "contractVersion": "ORDERAI-QUEUE-W2-01"}
     assert "smart_agriculture_expo" in contract["requiredViews"]
+    assert {"parse_result", "risk_review", "queue"}.issubset(contract["requiredViews"])
     assert contract["invoiceCredentialBoundary"] == {
         "providerInterface": "IInvoiceProvider.issue",
         "publicStatusOnly": True,
@@ -44,7 +48,7 @@ def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
 
 def test_integration_fixture_covers_five_locales_and_fail_closed_paths() -> None:
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-04"
+    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-05"
     assert fixture["dataBoundary"] == "DEMO_MOCK"
     assert fixture["formalConnection"] is False
     scenarios = fixture["scenarios"]
