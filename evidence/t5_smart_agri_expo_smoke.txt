@@ -1,0 +1,26 @@
+# T5 Smart Agriculture Expo synthetic screen smoke
+
+- source_head_before_commit: `ec9d0ed0a59079ff48d1fb0d7c74ba7ad63eb398`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
+- data_boundary: `DEMO_MOCK`
+- formal_connection: `false`
+
+## Executed focused smoke
+
+`pytest -q tests/ui/orderai/test_smart_agri_expo_contract.py tests/ui/orderai/test_integration_entry_contract.py tests/ui/orderai/test_subscription_lifecycle_contract.py tests/ui/orderai/test_payment_method_management_contract.py tests/ui/orderai/test_operations_readiness_contract.py`
+
+Result: `10 passed`; exit code `0`.
+
+## Additional checks
+
+- JSON validation: `orderai.smart_agri_expo`／`orderai.integration_entry` contracts and fixtures — exit code `0`.
+- `python3 -m compileall -q tests/ui/orderai` — exit code `0`.
+- `git diff --check` — exit code `0`.
+- external_or_secret — `MATCH=NO`.
+- pii_or_payment_credential_payload — `MATCH=NO`.
+- shadow_or_analytics — `MATCH=NO`.
+- unapproved_event — `MATCH=NO`.
+
+## Boundary assertion
+
+Every AI／FAQ／customer-service／promotion payload is explicitly `DEMO_MOCK` and synthetic only. No unauthorized PII, raw message, customer identifier, formal LLM／LINE key, payment／invoice provider connection, invoice credential, or EventBus event is included. Parse／risk／review／payment／invoice unknown states remain `needs_review` or `manual_review`; no scenario can auto-publish, auto-send, auto-enable entitlement, or issue an invoice.

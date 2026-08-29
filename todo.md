@@ -26,3 +26,5 @@
 - [x] **付款方式 lifecycle contract 擴充**：已在 `DEMO_MOCK` 補齊查看、重新授權與解除綁定的安全 status；add／switch／update／reauthorize／detach 的 unknown／timeout 均 fail-closed，未建立 token、vault、callback、route 或 migration。
 - [x] **付款方式 lifecycle T1 handoff**：已升版整合入口／fixture並補 focused harness與evidence；共享 manifest 待以本輪 pinned SHA 更新，渲染／RWD／a11y evidence 仍由 T1 交付。
 - [x] **重啟覆蓋核對**：已以 `79f33bd6c19f1380d48ec66560e2a3e6bf69117a` 對照指定 hardening lineage，確認獨立產品入口、三通路、AI entitlement、subscription、payment-method lifecycle、invoice／billing history 與 parse／risk／Queue T1 fixture 均已有可用 synthetic coverage；未重做既有產品核心。
+- [x] **智慧農業展 synthetic screen／fixture**：已新增農產團購建立、AI parse、risk／needs_review、即期品促銷建議、合成 FAQ／客服、方案／訂閱、付款／invoice status與entitlement的五語系 `DEMO_MOCK` screen contract／fixture／focused harness；未讀取未授權 PII，未接正式 LLM／LINE／payment／invoice。
+- [ ] **智慧農業展 T1 handoff**：已完成本輪 focused smoke與scan；待建立 Git snapshot並更新 T5 shared board／Manifest後，請 T1 以 pinned commit 掛載並回填路由／RWD／a11y evidence。

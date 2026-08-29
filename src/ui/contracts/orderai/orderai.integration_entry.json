@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-03",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-04",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -33,6 +33,12 @@
         "tests/test_line_worker.py",
         "tests/test_queue_contract.py"
       ]
+    },
+    "smartAgricultureExpo": {
+      "reuseMode": "INTEGRATE_VIA_ADAPTER",
+      "screenId": "orderai.smart_agri_expo",
+      "contractVersion": "ORDERAI-SMART-AGRI-EXPO-W2-01",
+      "availability": "available_synthetic"
     }
   },
   "requiredViews": [
@@ -42,7 +48,8 @@
     "invoice_request_and_status",
     "invoice_credential_boundary",
     "payment_method_management_gate",
-    "parse_risk_review_queue"
+    "parse_risk_review_queue",
+    "smart_agriculture_expo"
   ],
   "failClosed": {
     "unknownPayment": "manual_review",

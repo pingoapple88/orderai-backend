@@ -1,0 +1,70 @@
+{
+  "fixtureVersion": "ORDERAI-SMART-AGRI-EXPO-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-SMART-AGRI-EXPO-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {
+      "id": "agri-group-buy-create-review",
+      "locale": "zh-Hant-TW",
+      "channel": "direct",
+      "view": "agri_group_buy_create",
+      "demoLabel": "DEMO_MOCK",
+      "groupBuyStatus": "draft",
+      "parseStatus": "needs_review",
+      "riskStatus": "needs_review",
+      "reviewStatus": "needs_review",
+      "allowedActions": [],
+      "reasonCode": "SYNTHETIC_PARSE_REVIEW_REQUIRED"
+    },
+    {
+      "id": "agri-parse-risk-needs-review",
+      "locale": "en-US",
+      "channel": "dealer",
+      "view": "ai_parse_result",
+      "demoLabel": "DEMO_MOCK",
+      "parseStatus": "needs_review",
+      "riskStatus": "needs_review",
+      "reviewStatus": "needs_review",
+      "queueStatus": "not_enqueued",
+      "allowedActions": [],
+      "reasonCode": "SYNTHETIC_RISK_THRESHOLD_NOT_MET"
+    },
+    {
+      "id": "agri-near-expiry-promotion-review",
+      "locale": "th-TH",
+      "channel": "enterprise",
+      "view": "near_expiry_promotion_suggestion",
+      "demoLabel": "DEMO_MOCK",
+      "promotionSuggestionStatus": "manual_review",
+      "autoPublish": false,
+      "allowedActions": [],
+      "reasonCode": "SYNTHETIC_PROMOTION_REQUIRES_HUMAN_REVIEW"
+    },
+    {
+      "id": "agri-faq-customer-service-review",
+      "locale": "ja-JP",
+      "channel": "direct",
+      "view": "synthetic_faq_customer_service",
+      "demoLabel": "DEMO_MOCK",
+      "customerServiceStatus": "manual_review",
+      "autoSend": false,
+      "allowedActions": [],
+      "reasonCode": "SYNTHETIC_FAQ_REQUIRES_HUMAN_REVIEW"
+    },
+    {
+      "id": "agri-subscription-payment-invoice-entitlement",
+      "locale": "id-ID",
+      "channel": "dealer",
+      "view": "plan_subscription_entitlement",
+      "demoLabel": "DEMO_MOCK",
+      "subscriptionStatus": "manual_review",
+      "paymentStatus": "unknown",
+      "entitlementStatus": "manual_review",
+      "invoiceStatus": "manual_review",
+      "invoiceCredentialStatus": "owner_gate",
+      "allowedActions": [],
+      "reasonCode": "SYNTHETIC_UNKNOWN_PAYMENT_REQUIRES_RECONCILIATION"
+    }
+  ]
+}

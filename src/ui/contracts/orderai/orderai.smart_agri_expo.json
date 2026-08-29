@@ -1,0 +1,67 @@
+{
+  "screenContractVersion": "ORDERAI-SMART-AGRI-EXPO-W2-01",
+  "screenId": "orderai.smart_agri_expo",
+  "featureId": "orderai",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "currencyRule": "integer_minor_units_only",
+  "timeRule": "UTC_RFC3339_only",
+  "providerBoundary": {
+    "llm": "ILLMProvider_demo_mock_only",
+    "payment": "IPaymentProvider_status_projection_only",
+    "subscription": "ISubscriptionProvider_status_projection_only",
+    "invoice": "IInvoiceProvider_status_projection_only"
+  },
+  "requiredViews": [
+    "agri_group_buy_create",
+    "ai_parse_result",
+    "risk_needs_review",
+    "near_expiry_promotion_suggestion",
+    "synthetic_faq_customer_service",
+    "plan_subscription_entitlement",
+    "payment_status",
+    "invoice_status"
+  ],
+  "aiAndSupportBoundary": {
+    "label": "DEMO_MOCK",
+    "sourceData": "synthetic_only",
+    "allowUnauthorizedPii": false,
+    "autoPublishPromotion": false,
+    "autoSendCustomerReply": false,
+    "humanReviewRequired": true
+  },
+  "failClosed": {
+    "unknownParse": "needs_review",
+    "belowRiskThreshold": "needs_review",
+    "unknownPromotionSuggestion": "manual_review",
+    "unknownFaqAnswer": "manual_review",
+    "providerTimeout": "manual_review",
+    "unknownPayment": "manual_review",
+    "unknownInvoice": "manual_review",
+    "unknownEntitlement": "manual_review",
+    "missingScope": "blocked"
+  },
+  "forbiddenClientFields": [
+    "companyId",
+    "storeId",
+    "userId",
+    "customerName",
+    "customerPhone",
+    "customerEmail",
+    "lineUserId",
+    "rawMessage",
+    "paymentToken",
+    "paymentReference",
+    "providerReference",
+    "invoiceCredential",
+    "invoiceDownloadUrl",
+    "cardNumber",
+    "bankAccount"
+  ],
+  "eventBoundary": {
+    "newEvents": [],
+    "mode": "no_new_event"
+  }
+}

@@ -7,8 +7,9 @@
 | 獨立銷售入口、三通路、訂閱、entitlement、帳務、發票 | `orderai.subscription_lifecycle`／`ORDERAI-SUBSCRIPTION-W2-01` | `REUSE_AS_IS` | 僅 `DEMO_MOCK`；未知付款／發票為 `manual_review`。 |
 | AI 額度、帳務 history、invoice history、sandbox／cost／backup／EventBus readiness | `orderai.operations_readiness`／`ORDERAI-OPERATIONS-W2-01` | `REUSE_AS_IS` | 僅 local mock／mapping-only；backup 為 `owner_gate`。 |
 | 付款方式管理 | `orderai.payment_method_management`／`ORDERAI-PAYMENT-METHOD-W2-02` | `INTEGRATE_VIA_ADAPTER` | 查看僅有無憑證 synthetic summary；新增、切換、修改、重新授權、解除綁定、移除均為 `owner_gate`，unknown／timeout 為 `manual_review`；不可收集 payment token、卡號或帳戶資料。 |
-| 電子發票憑證 | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-03` | `INTEGRATE_VIA_ADAPTER` | 沿用 `IInvoiceProvider.issue` 的 status-only projection；憑證、reference、下載 URL 與 provider payload 均不公開，且 credential access 為 `owner_gate`。 |
-| parse、risk、review、Queue／dead-letter | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-03` | `REUSE_AS_IS` | 只呈現既有 `needs_review`、`provider_timeout`、`dead_letter` fail-closed state。 |
+| 電子發票憑證 | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-04` | `INTEGRATE_VIA_ADAPTER` | 沿用 `IInvoiceProvider.issue` 的 status-only projection；憑證、reference、下載 URL 與 provider payload 均不公開，且 credential access 為 `owner_gate`。 |
+| parse、risk、review、Queue／dead-letter | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-04` | `REUSE_AS_IS` | 只呈現既有 `needs_review`、`provider_timeout`、`dead_letter` fail-closed state。 |
+| 智慧農業展 synthetic flow | `orderai.smart_agri_expo`／`ORDERAI-SMART-AGRI-EXPO-W2-01` | `INTEGRATE_VIA_ADAPTER` | 農產團購、AI parse、risk／needs_review、即期品建議、FAQ／客服、subscription、payment、invoice與entitlement均為五語系 `DEMO_MOCK`；AI／客服不得讀取未授權 PII，所有疑義須人工審查。 |
 
 ## T1 input
 
