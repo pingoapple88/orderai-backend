@@ -11,11 +11,12 @@ LOCALES = {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
 def test_canonical_module_input_is_pinned_read_only_and_synthetic() -> None:
     contract = json.loads(PATH.read_text(encoding="utf-8"))
 
-    assert contract["canonicalInputVersion"] == "ORDERAI-CANONICAL-INPUT-W2-02"
+    assert contract["canonicalInputVersion"] == "ORDERAI-CANONICAL-INPUT-W2-03"
     assert contract["moduleId"] == "orderai"
     assert contract["repository"] == "pingoapple88/orderai-backend"
     assert contract["branch"] == "feat/orderai-self-service-subscriptions"
-    assert contract["sourceCommit"] == "133066f3b0544afb418b1fe2ad6fd5d962b43bf6"
+    assert contract["sourceCommit"] == "f8d5ef934087e4e26f3c7c641d9caf6a1b400fca"
+    assert contract["assetBaselineCommit"] == "133066f3b0544afb418b1fe2ad6fd5d962b43bf6"
     assert contract["parentCommit"] == contract["rollbackCommit"]
     assert contract["mode"] == "DEMO_MOCK"
     assert contract["availability"] == "available_synthetic"

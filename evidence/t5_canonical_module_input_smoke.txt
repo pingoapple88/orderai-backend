@@ -1,6 +1,6 @@
 # T5 OrderAI canonical module input smoke
 
-- source_asset_commit: `133066f3b0544afb418b1fe2ad6fd5d962b43bf6`
+- source_asset_commit: `f8d5ef934087e4e26f3c7c641d9caf6a1b400fca`
 - hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
 - data_boundary: `DEMO_MOCK`
 - integration_mode: `read_only_contract_and_local_fixture_only_no_live_fetch`
@@ -22,9 +22,13 @@ Result: **`17 passed`**, exit code **`0`**.
 
 ## Source-pin revision verification
 
-Canonical input was revised from `ORDERAI-CANONICAL-INPUT-W2-01` to `ORDERAI-CANONICAL-INPUT-W2-02` so its `sourceCommit` is the already-pushed `133066f3b0544afb418b1fe2ad6fd5d962b43bf6` snapshot that actually contains the canonical asset. The integration entry was correspondingly revised to `ORDERAI-INTEGRATION-W2-07`.
+Canonical input was revised to `ORDERAI-CANONICAL-INPUT-W2-03` so its `sourceCommit` is the already-pushed `f8d5ef934087e4e26f3c7c641d9caf6a1b400fca` snapshot that contains the W2-02 canonical asset. The preceding `133066f3b0544afb418b1fe2ad6fd5d962b43bf6` is separately recorded as `assetBaselineCommit`; it is not the canonical source pin. The integration entry was correspondingly revised to `ORDERAI-INTEGRATION-W2-08`.
 
 The same seven focused harnesses were re-executed after the revision: **`17 passed`**, exit code **`0`**. JSON validation, `python3 -m compileall -q tests/ui/orderai`, and `git diff --check` each exited **`0`**.
+
+## Final canonical source verification
+
+After setting `sourceCommit` to `f8d5ef934087e4e26f3c7c641d9caf6a1b400fca` and `assetBaselineCommit` to `133066f3b0544afb418b1fe2ad6fd5d962b43bf6`, the seven canonical／integration／screen focused harnesses were executed again: **`17 passed`**, exit code **`0`**. JSON validation, `python3 -m compileall -q tests/ui/orderai`, and `git diff --check` each exited **`0`**. The precise source-path security scan also exited **`0`** with all four categories `MATCH=NO`.
 
 ## Additional actual checks
 
