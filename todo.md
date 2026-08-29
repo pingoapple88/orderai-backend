@@ -30,3 +30,5 @@
 - [ ] **智慧農業展 T1 handoff**：已完成本輪 focused smoke與scan；待建立 Git snapshot並更新 T5 shared board／Manifest後，請 T1 以 pinned commit 掛載並回填路由／RWD／a11y evidence。
 - [x] **ROUND_1 parse／risk review／queue assets**：已建立 `orderai.parse_result`、`orderai.risk_review`、`orderai.queue` 的獨立五語系 `DEMO_MOCK` contract、fixture與focused harness，覆蓋高信心通過、low-confidence／unmatched fail-closed、needs_review、dead-letter、有限 retry、dedup、scope、PII redaction、UTC、idempotency、audit與loading／empty／error／blocked。
 - [ ] **ROUND_1 R1 handoff**：已完成 synthetic scoped smoke與scan；待 Git snapshot、T5 shared board／Manifest／evidence index同步後標示 `READY_FOR_R1`。資料庫相依的既有 risk／queue focused unit tests受本機 `MySQLdb` driver 缺失阻塞，未宣稱通過。
+- [x] **T1 canonical module input**：已建立 `orderai` read-only route contract、machine-readable canonical snapshot與evidence index，固定 repository／branch／source asset commit／parent／rollback、contract／fixture／availability／mode／evidence_level與已知 Gate。
+- [ ] **T1 canonical handoff同步**：已完成 canonical input focused validation；待 Git snapshot、shared board／Manifest／XREQ更新並標示 `READY_FOR_T1`。正式 OAuth、資料庫寫入、payment／invoice provider仍維持 `DEMO_MOCK`／`BLOCKED`。

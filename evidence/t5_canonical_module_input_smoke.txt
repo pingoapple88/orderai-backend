@@ -1,0 +1,37 @@
+# T5 OrderAI canonical module input smoke
+
+- source_asset_commit: `07584532a4206a656e7940efc81c0003ef748563`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
+- data_boundary: `DEMO_MOCK`
+- integration_mode: `read_only_contract_and_local_fixture_only_no_live_fetch`
+- formal_connection: `false`
+
+## Executed focused smoke
+
+```text
+pytest -q tests/ui/orderai/test_canonical_module_input_contract.py \
+  tests/ui/orderai/test_integration_entry_contract.py \
+  tests/ui/orderai/test_parse_risk_queue_contracts.py \
+  tests/ui/orderai/test_subscription_lifecycle_contract.py \
+  tests/ui/orderai/test_payment_method_management_contract.py \
+  tests/ui/orderai/test_operations_readiness_contract.py \
+  tests/ui/orderai/test_smart_agri_expo_contract.py
+```
+
+Result: **`17 passed`**, exit code **`0`**.
+
+## Additional actual checks
+
+| Check | Result |
+|---|---|
+| Canonical input／integration entry JSON validation | PASS, exit code `0` |
+| `python3 -m compileall -q tests/ui/orderai` | PASS, exit code `0` |
+| `git diff --check` | PASS, exit code `0` |
+| external／secret scan | PASS, `MATCH=NO` |
+| client authority／PII／credential payload scan | PASS, `MATCH=NO` |
+| shadow／analytics scan | PASS, `MATCH=NO` |
+| unapproved event scan | PASS, `MATCH=NO` |
+
+## Scope assertion
+
+The canonical input describes only existing GET endpoints and synthetic fixture presentation. T1 must not execute a live fetch, transmit bearer credentials, write to a database, invoke OAuth, or request payment／invoice／LLM／LINE provider operations. Routes requiring JWT are documented for contract completeness but remain `blocked` in the `DEMO_MOCK` UI when no authorized integration exists.

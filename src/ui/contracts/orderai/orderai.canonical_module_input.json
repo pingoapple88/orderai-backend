@@ -1,0 +1,112 @@
+{
+  "canonicalInputVersion": "ORDERAI-CANONICAL-INPUT-W2-01",
+  "moduleId": "orderai",
+  "repository": "pingoapple88/orderai-backend",
+  "branch": "feat/orderai-self-service-subscriptions",
+  "sourceCommit": "07584532a4206a656e7940efc81c0003ef748563",
+  "parentCommit": "8df9f2a2af8cddd1c357ab3d767db94a3d0504a3",
+  "rollbackCommit": "8df9f2a2af8cddd1c357ab3d767db94a3d0504a3",
+  "hardeningLineage": "99279894d347f2dd2d19a07735d7e937e0547f39",
+  "mode": "DEMO_MOCK",
+  "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE",
+  "availability": "available_synthetic",
+  "integrationUse": "read_only_contract_and_local_fixture_only_no_live_fetch",
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "readOnlyRoutes": [
+    {
+      "route": "/api/v1/module/orderai/health",
+      "method": "GET",
+      "requiredInput": [],
+      "outputFields": ["status", "module_key", "module_version"],
+      "errorOrBlocked": {"unavailable": "[TODO: 待人工確認]"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/module/orderai/manifest",
+      "method": "GET",
+      "requiredInput": [],
+      "outputFields": ["moduleKey", "moduleVersion", "displayName", "supportedLocales", "capabilities", "registrationEndpoint", "healthEndpoint", "status"],
+      "errorOrBlocked": {"unavailable": "[TODO: 待人工確認]"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/module/orderai/plans",
+      "method": "GET",
+      "requiredInput": [{"name": "channel", "location": "query", "required": false, "values": ["direct", "dealer", "enterprise"], "default": "direct"}],
+      "outputFields": ["name", "channel", "monthlyPrice", "currency", "aiExtractionLimit", "priceVersionDate", "priceDisclaimer"],
+      "errorOrBlocked": {"invalidChannel": "[TODO: 待人工確認]", "emptyCatalog": "empty"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/module/orderai/status",
+      "method": "GET",
+      "requiredInput": [{"name": "Authorization", "location": "header", "required": true, "format": "Bearer <JWT>"}],
+      "outputFields": ["planName", "channel", "aiUsageCount", "aiExtractionLimit", "status"],
+      "errorOrBlocked": {"missingBearer": {"httpStatus": 401, "status": "blocked", "detail": "Missing bearer token"}, "invalidOrExpiredToken": {"httpStatus": 401, "status": "blocked"}, "malformedToken": {"httpStatus": 401, "status": "blocked"}},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/orderai/subscriptions/status",
+      "method": "GET",
+      "requiredInput": [{"name": "Authorization", "location": "header", "required": true, "format": "Bearer <JWT>"}],
+      "outputFields": ["status", "entitlementStatus", "channel", "planName", "aiUsageCount", "aiExtractionLimit", "currentPeriodEnd", "paymentStatus", "invoiceStatus"],
+      "errorOrBlocked": {"missingBearer": {"httpStatus": 401, "status": "blocked"}, "unknownPaymentOrInvoice": "manual_review", "unknownEntitlement": "manual_review"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/orderai/subscriptions/billing-history",
+      "method": "GET",
+      "requiredInput": [{"name": "Authorization", "location": "header", "required": true, "format": "Bearer <JWT>"}],
+      "outputFields": ["records.amountMinor", "records.currency", "records.status", "records.createdAt"],
+      "errorOrBlocked": {"missingBearer": {"httpStatus": 401, "status": "blocked"}, "unknownRecordStatus": "manual_review", "noRecords": "empty"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/orderai/subscriptions/usage",
+      "method": "GET",
+      "requiredInput": [{"name": "Authorization", "location": "header", "required": true, "format": "Bearer <JWT>"}],
+      "outputFields": ["used", "limit", "remaining", "status", "cycleStartedAt"],
+      "errorOrBlocked": {"missingBearer": {"httpStatus": 401, "status": "blocked"}, "unknownQuotaOrEntitlement": "manual_review"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/orderai/subscriptions/invoices",
+      "method": "GET",
+      "requiredInput": [{"name": "Authorization", "location": "header", "required": true, "format": "Bearer <JWT>"}],
+      "outputFields": ["records.status", "records.amountMinor", "records.currency", "records.issuedAt", "records.dueAt"],
+      "errorOrBlocked": {"missingBearer": {"httpStatus": 401, "status": "blocked"}, "unknownInvoice": "manual_review", "noRecords": "empty"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    },
+    {
+      "route": "/api/v1/orderai/subscriptions/invoices/latest",
+      "method": "GET",
+      "requiredInput": [{"name": "Authorization", "location": "header", "required": true, "format": "Bearer <JWT>"}],
+      "outputFields": ["status", "amountMinor", "currency", "issuedAt", "dueAt"],
+      "errorOrBlocked": {"missingBearer": {"httpStatus": 401, "status": "blocked"}, "unknownInvoice": "manual_review", "noInvoice": "empty"},
+      "returnEntry": "[TODO: 待 T1 pinned manifest 指定]"
+    }
+  ],
+  "fixtureCatalog": [
+    {"screenId": "orderai.integration_entry", "fixturePath": "src/ui/fixtures/orderai/orderai_integration_entry.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
+    {"screenId": "orderai.subscription_lifecycle", "fixturePath": "src/ui/fixtures/orderai/orderai_subscription_lifecycle.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
+    {"screenId": "orderai.payment_method_management", "fixturePath": "src/ui/fixtures/orderai/orderai_payment_method_management.json", "owner": "T5", "availability": "owner_gate", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
+    {"screenId": "orderai.parse_result", "fixturePath": "src/ui/fixtures/orderai/orderai_parse_result.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
+    {"screenId": "orderai.risk_review", "fixturePath": "src/ui/fixtures/orderai/orderai_risk_review.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
+    {"screenId": "orderai.queue", "fixturePath": "src/ui/fixtures/orderai/orderai_queue.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
+    {"screenId": "orderai.smart_agri_expo", "fixturePath": "src/ui/fixtures/orderai/orderai_smart_agri_expo.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"}
+  ],
+  "presentationScope": {
+    "parse": ["approved_at_0_85", "low_confidence_needs_review", "catalog_product_unmatched", "provider_timeout", "blocked_when_scope_missing"],
+    "riskReview": ["approved", "needs_review", "manual_review", "blocked", "hash_only_audit_reference"],
+    "queue": ["loading", "empty", "duplicate", "limited_retry", "dead_letter_manual_review", "error", "blocked"],
+    "selfService": ["direct", "dealer", "enterprise", "subscription_status", "usage_status", "billing_history", "invoice_status_only", "payment_method_owner_gate"]
+  },
+  "explicitlyPlannedOrBlocked": [
+    {"capability": "T1 visual route mounting", "status": "PLANNED", "owner": "T1", "reason": "pinned manifest route未提供"},
+    {"capability": "formal OAuth", "status": "BLOCKED", "owner": "owner／中央", "reason": "獨立 OAuth branch 不可混入"},
+    {"capability": "formal payment and payment method operations", "status": "BLOCKED", "owner": "payment owner／中央", "reason": "vault／tokenization／provider sandbox未核准"},
+    {"capability": "formal invoice credential／tax", "status": "BLOCKED", "owner": "invoice／tax owner／中央", "reason": "只提供status projection，不公開憑證"},
+    {"capability": "database write or runtime verification", "status": "BLOCKED", "owner": "environment owner", "reason": "T1 input只讀；本機既有 risk／queue data-dependent tests受MySQLdb driver缺失阻塞"}
+  ],
+  "forbidden": {"liveFetch": true, "clientCompanyOrStoreAuthority": true, "rawPii": true, "paymentOrInvoiceCredentials": true, "newEvents": true}
+}
