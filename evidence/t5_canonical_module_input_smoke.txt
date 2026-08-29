@@ -1,6 +1,6 @@
 # T5 OrderAI canonical module input smoke
 
-- source_asset_commit: `07584532a4206a656e7940efc81c0003ef748563`
+- source_asset_commit: `133066f3b0544afb418b1fe2ad6fd5d962b43bf6`
 - hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
 - data_boundary: `DEMO_MOCK`
 - integration_mode: `read_only_contract_and_local_fixture_only_no_live_fetch`
@@ -20,6 +20,12 @@ pytest -q tests/ui/orderai/test_canonical_module_input_contract.py \
 
 Result: **`17 passed`**, exit code **`0`**.
 
+## Source-pin revision verification
+
+Canonical input was revised from `ORDERAI-CANONICAL-INPUT-W2-01` to `ORDERAI-CANONICAL-INPUT-W2-02` so its `sourceCommit` is the already-pushed `133066f3b0544afb418b1fe2ad6fd5d962b43bf6` snapshot that actually contains the canonical asset. The integration entry was correspondingly revised to `ORDERAI-INTEGRATION-W2-07`.
+
+The same seven focused harnesses were re-executed after the revision: **`17 passed`**, exit code **`0`**. JSON validation, `python3 -m compileall -q tests/ui/orderai`, and `git diff --check` each exited **`0`**.
+
 ## Additional actual checks
 
 | Check | Result |
@@ -31,6 +37,8 @@ Result: **`17 passed`**, exit code **`0`**.
 | client authority／PII／credential payload scan | PASS, `MATCH=NO` |
 | shadow／analytics scan | PASS, `MATCH=NO` |
 | unapproved event scan | PASS, `MATCH=NO` |
+
+An initial broad shadow／analytics grep returned exit code `1` only because it scanned this evidence file's own text label `shadow／analytics scan`; it did not indicate runtime content. The final precise scan excluded evidence records and evaluated canonical contract／fixture／harness／handoff source paths only. Final precise scan: external／secret `MATCH=NO`, client authority／PII／credential payload `MATCH=NO`, shadow／tracking source `MATCH=NO`, unapproved event `MATCH=NO`; exit code **`0`**.
 
 ## Scope assertion
 

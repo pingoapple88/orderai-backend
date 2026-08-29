@@ -2,7 +2,7 @@
 
 | Scope | Source commit | Evidence | Result |
 |---|---|---|---|
-| Canonical T1 read-only module input | `07584532a4206a656e7940efc81c0003ef748563` | `evidence/t5_canonical_module_input_smoke.txt` | 17 passed; compile／diff／scans exit 0. |
+| Canonical T1 read-only module input | `133066f3b0544afb418b1fe2ad6fd5d962b43bf6` | `evidence/t5_canonical_module_input_smoke.txt` | 17 passed; compile／diff／scans exit 0. |
 | Parse／risk review／Queue | `07584532a4206a656e7940efc81c0003ef748563` | `evidence/t5_round1_parse_risk_queue_smoke.txt` | Synthetic fallback 11 passed; existing database-dependent suite RETURN_FOR_EVIDENCE. |
 | Smart agriculture synthetic presentation | `8df9f2a2af8cddd1c357ab3d767db94a3d0504a3` | `evidence/t5_smart_agri_expo_smoke.txt` | 10 passed. |
 | Self-service restart coverage | `ec9d0ed0a59079ff48d1fb0d7c74ba7ad63eb398` | `evidence/t5_orderai_restart_coverage_smoke_2026-08-29.txt` | 8 passed. |

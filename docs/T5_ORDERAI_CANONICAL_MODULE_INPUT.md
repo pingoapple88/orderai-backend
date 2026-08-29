@@ -11,8 +11,8 @@
 | module_id | `orderai` |
 | repository | `pingoapple88/orderai-backend` |
 | branch | `feat/orderai-self-service-subscriptions` |
-| source_commit | `07584532a4206a656e7940efc81c0003ef748563` |
-| parent／rollback | `8df9f2a2af8cddd1c357ab3d767db94a3d0504a3` |
+| source_commit | `133066f3b0544afb418b1fe2ad6fd5d962b43bf6` |
+| parent／rollback | `07584532a4206a656e7940efc81c0003ef748563` |
 | hardening lineage | `99279894d347f2dd2d19a07735d7e937e0547f39` |
 | owner | T5 |
 | mode／availability／evidence_level | `DEMO_MOCK`／`available_synthetic`／`SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE` |
@@ -60,4 +60,4 @@
 
 ## T1 next action
 
-以 `07584532a4206a656e7940efc81c0003ef748563` 為唯一 source，載入 JSON fixture，建立單一 Demo route manifest；若任一 fixture／contract缺失或 SHA 不一致，維持 `blocked` fallback並回填 `XREQ-T5-0007`。不要自行補 API、provider、OAuth、billing、payment或invoice core。
+以 `133066f3b0544afb418b1fe2ad6fd5d962b43bf6` 為唯一 asset source，載入 JSON fixture，建立單一 Demo route manifest；若任一 fixture／contract缺失或 SHA 不一致，維持 `blocked` fallback並回填 `XREQ-T5-0007`。不要自行補 API、provider、OAuth、billing、payment或invoice core。

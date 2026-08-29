@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-06",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-07",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -52,7 +52,7 @@
     "canonicalModuleInput": {
       "reuseMode": "REUSE_AS_IS",
       "contractPath": "src/ui/contracts/orderai/orderai.canonical_module_input.json",
-      "contractVersion": "ORDERAI-CANONICAL-INPUT-W2-01",
+      "contractVersion": "ORDERAI-CANONICAL-INPUT-W2-02",
       "availability": "available_synthetic"
     },
     "smartAgricultureExpo": {
