@@ -1,0 +1,37 @@
+# T5 payment method lifecycle W2-02 smoke
+
+- source_head_before_commit: `8774f861113e7832d1def9a5e59ec1f19aa717c0`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39` remains the validated ancestor
+- payment_method_contract: `ORDERAI-PAYMENT-METHOD-W2-02`
+- integration_entry_contract: `ORDERAI-INTEGRATION-W2-03`
+- data_boundary: `DEMO_MOCK`
+- formal_connection: `false`
+
+## Executed focused smoke
+
+`pytest -q tests/ui/orderai/test_payment_method_management_contract.py tests/ui/orderai/test_integration_entry_contract.py tests/ui/orderai/test_operations_readiness_contract.py`
+
+Result: `6 passed`; exit code `0`.
+
+`python3 -m json.tool src/ui/contracts/orderai/orderai.payment_method_management.json`
+
+`python3 -m json.tool src/ui/fixtures/orderai/orderai_payment_method_management.json`
+
+`python3 -m json.tool src/ui/contracts/orderai/orderai.integration_entry.json`
+
+`python3 -m json.tool src/ui/fixtures/orderai/orderai_integration_entry.json`
+
+`python3 -m compileall -q tests/ui/orderai`
+
+`git diff --check`
+
+Result: each exit code `0`.
+
+## Precise scan
+
+- external_or_secret: `MATCH=NO`
+- synthetic_payload_sensitive_data: `MATCH=NO`
+- shadow_or_analytics: `MATCH=NO`
+- unapproved_event: `MATCH=NO`
+
+The added payment-method scenarios contain only synthetic actions and safe status fields. `available_synthetic` is limited to a zero-count availability summary; add, switch, update, reauthorize, detach, and remove operations never expose or collect IDs, tokens, cards, bank accounts, credentials, URLs, or provider payloads. Timeout or unknown provider／detachment state is `manual_review`; it cannot activate entitlement or create an invoice.

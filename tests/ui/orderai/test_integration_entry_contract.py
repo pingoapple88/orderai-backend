@@ -11,7 +11,7 @@ LOCALES = {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
 
 def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
-    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-02"
+    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-03"
     assert contract["screenId"] == "orderai.integration_entry"
     assert contract["dataBoundary"] == "DEMO_MOCK"
     assert contract["formalConnection"] is False
@@ -22,7 +22,7 @@ def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
     assert baseline["paymentMethodManagement"] == {
         "reuseMode": "INTEGRATE_VIA_ADAPTER",
         "screenId": "orderai.payment_method_management",
-        "contractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+        "contractVersion": "ORDERAI-PAYMENT-METHOD-W2-02",
         "availability": "owner_gate",
     }
     assert contract["invoiceCredentialBoundary"] == {
@@ -37,7 +37,7 @@ def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
 
 def test_integration_fixture_covers_five_locales_and_fail_closed_paths() -> None:
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-02"
+    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-03"
     assert fixture["dataBoundary"] == "DEMO_MOCK"
     assert fixture["formalConnection"] is False
     scenarios = fixture["scenarios"]

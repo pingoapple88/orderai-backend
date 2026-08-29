@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-02",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-03",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -22,7 +22,7 @@
     "paymentMethodManagement": {
       "reuseMode": "INTEGRATE_VIA_ADAPTER",
       "screenId": "orderai.payment_method_management",
-      "contractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+      "contractVersion": "ORDERAI-PAYMENT-METHOD-W2-02",
       "availability": "owner_gate"
     },
     "parseRiskReviewQueue": {

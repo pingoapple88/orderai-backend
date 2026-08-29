@@ -1,14 +1,17 @@
 # T5 付款方式自助管理：受控交接
 
-**狀態：`BLOCKED`（正式管理能力）／`PASS`（`DEMO_MOCK` contract 與 fixture）。** 使用者要求的付款方式新增、切換、修改設定與移除，必須在 provider-neutral 的持久化／vault abstraction、中央 owner 授權與已核准 migration 完整存在後，才可對外提供 API。
+**狀態：`BLOCKED`（正式管理能力）／`PASS`（`DEMO_MOCK` contract 與 fixture，`ORDERAI-PAYMENT-METHOD-W2-02`）。** 使用者要求的付款方式查看、新增、切換、修改設定、重新授權、解除綁定與移除，必須在 provider-neutral 的持久化／vault abstraction、中央 owner 授權與已核准 migration 完整存在後，才可對外提供 API。
 
 目前 `IPaymentProvider` 僅有 `create_payment` 與 `get_status`，既有 `BillingRecord.payment_method` 只保存既有帳務記錄的支付方式文字，並不是可安全管理的付款方式 vault。現有 `plans`、`billing_records` 與 Alembic chain 中沒有 payment method profile、default selection、token reference 或設定版本的核准資料模型。因此 T5 未以 client payload、`BillingRecord` 或 process-local data 假裝可持久化付款方式。
 
 | 使用者期待操作 | T5 synthetic screen 狀態 | 正式實作前置條件 |
 |---|---|---|
+| 查看付款方式 | `available_synthetic` | 只允許 `methodCount`、`defaultMethodStatus`、`managementAvailability`；不公開方法 ID、token、卡號、帳戶或 provider reference。 |
 | 新增付款方式 | `owner_gate` | [TODO: 待人工確認] payment method vault owner、tokenization boundary、callback authority。 |
 | 切換預設方式 | `owner_gate` | [TODO: 待人工確認] provider capability 與 subscription billing selection contract。 |
 | 修改設定 | `owner_gate` | [TODO: 待人工確認] 可修改設定白名單、PII／PCI 資料責任與 audit payload contract。 |
+| 重新授權 | `owner_gate`；timeout 為 `manual_review` | [TODO: 待人工確認] reauthorization capability、callback authority 與 reconciliation contract。 |
+| 解除綁定 | `owner_gate`；未知結果為 `manual_review` | [TODO: 待人工確認] detachment lifecycle、reconciliation 與 retention policy。 |
 | 移除方式 | `blocked`／`owner_gate` | 最後一個 active method 必須 `blocked`；其他刪除仍需 lifecycle、reconciliation 與 retention policy。 |
 | 未知 provider 或狀態 | `manual_review` | 不建立支付、不調整 entitlement、不自動重試。 |
 

@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+  "screenContractVersion": "ORDERAI-PAYMENT-METHOD-W2-02",
   "screenId": "orderai.payment_method_management",
   "dataBoundary": "DEMO_MOCK",
   "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
@@ -11,20 +11,29 @@
   },
   "requiredViews": [
     "payment_method_list",
+    "payment_method_safe_summary",
     "add_method_request",
     "switch_default_request",
     "update_method_settings_request",
+    "reauthorize_method_request",
+    "detach_method_request",
     "remove_method_request",
     "manual_review_status"
   ],
   "actions": {
+    "view_payment_methods": "available_synthetic",
     "add_payment_method": "owner_gate",
     "switch_default_payment_method": "owner_gate",
     "update_payment_method_settings": "owner_gate",
+    "reauthorize_payment_method": "owner_gate",
+    "detach_payment_method": "owner_gate",
     "remove_payment_method": "owner_gate"
   },
   "failClosed": {
     "unknownProvider": "manual_review",
+    "unknownViewStatus": "manual_review",
+    "reauthorizationTimeout": "manual_review",
+    "unknownDetachmentStatus": "manual_review",
     "missingVaultAuthority": "owner_gate",
     "removeLastActiveMethod": "blocked",
     "unknownMethodStatus": "manual_review",
@@ -37,8 +46,15 @@
     "paymentToken",
     "paymentReference",
     "providerReference",
+    "paymentMethodId",
+    "reauthorizationCode",
+    "reauthorizationUrl",
     "cardNumber",
     "bankAccount"
   ],
+  "safeSummary": {
+    "permittedFields": ["methodCount", "defaultMethodStatus", "managementAvailability"],
+    "forbiddenFields": ["paymentMethodId", "paymentToken", "cardNumber", "bankAccount", "providerReference"]
+  },
   "formalConnection": false
 }

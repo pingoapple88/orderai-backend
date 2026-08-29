@@ -23,3 +23,5 @@
 - [x] **T1 fixture 缺口補齊**：已提供可用合成資料驗證的 parse／risk／review／Queue 入口索引與 fail-closed presentation contract；正式 route、付款、發票、provider、OAuth 與外部服務維持 Gate。
 - [x] **指定 hardening lineage 核對**：已確認目前 T5 branch 對指定 `99279894d347f2dd2d19a07735d7e937e0547f39` 為 descendant，且差異不含 OAuth paths、parse／risk／Queue／plans／billing_records 的重做。
 - [x] **產品入口與電子發票 fixture 覆蓋核對**：已將 direct／dealer／enterprise、AI quota／entitlement、subscription、payment-method owner gate、invoice request／status／credential boundary、billing history 納入 `ORDERAI-INTEGRATION-W2-02` T1 integration input；僅補充合成契約邊界。
+- [x] **付款方式 lifecycle contract 擴充**：已在 `DEMO_MOCK` 補齊查看、重新授權與解除綁定的安全 status；add／switch／update／reauthorize／detach 的 unknown／timeout 均 fail-closed，未建立 token、vault、callback、route 或 migration。
+- [x] **付款方式 lifecycle T1 handoff**：已升版整合入口／fixture並補 focused harness與evidence；共享 manifest 待以本輪 pinned SHA 更新，渲染／RWD／a11y evidence 仍由 T1 交付。
