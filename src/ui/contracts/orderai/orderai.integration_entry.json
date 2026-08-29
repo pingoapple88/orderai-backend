@@ -1,0 +1,69 @@
+{
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-01",
+  "screenId": "orderai.integration_entry",
+  "featureId": "orderai",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "currencyRule": "integer_minor_units_only",
+  "timeRule": "UTC_RFC3339_only",
+  "integrationBaseline": {
+    "subscriptionLifecycle": {
+      "reuseMode": "REUSE_AS_IS",
+      "screenId": "orderai.subscription_lifecycle",
+      "contractVersion": "ORDERAI-SUBSCRIPTION-W2-01"
+    },
+    "operationsReadiness": {
+      "reuseMode": "REUSE_AS_IS",
+      "screenId": "orderai.operations_readiness",
+      "contractVersion": "ORDERAI-OPERATIONS-W2-01"
+    },
+    "paymentMethodManagement": {
+      "reuseMode": "INTEGRATE_VIA_ADAPTER",
+      "screenId": "orderai.payment_method_management",
+      "contractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+      "availability": "owner_gate"
+    },
+    "parseRiskReviewQueue": {
+      "reuseMode": "REUSE_AS_IS",
+      "evidenceSources": [
+        "tests/test_parse_evaluation.py",
+        "tests/test_order_risk_service.py",
+        "tests/test_line_worker.py",
+        "tests/test_queue_contract.py"
+      ]
+    }
+  },
+  "requiredViews": [
+    "independent_sales_entry",
+    "channel_plan_and_ai_quota",
+    "subscription_entitlement_and_billing",
+    "invoice_request_and_status",
+    "payment_method_management_gate",
+    "parse_risk_review_queue"
+  ],
+  "failClosed": {
+    "unknownPayment": "manual_review",
+    "unknownInvoice": "manual_review",
+    "unknownProvider": "manual_review",
+    "missingScope": "blocked",
+    "paymentMethodAction": "owner_gate",
+    "unknownQueueOutcome": "needs_review"
+  },
+  "forbiddenClientFields": [
+    "companyId",
+    "storeId",
+    "userId",
+    "paymentToken",
+    "paymentReference",
+    "providerReference",
+    "cardNumber",
+    "bankAccount"
+  ],
+  "eventBoundary": {
+    "newEvents": [],
+    "subscriptionEvents": [],
+    "mode": "no_new_event"
+  }
+}

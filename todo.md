@@ -19,3 +19,5 @@
 - [x] **付款方式自助管理 contract 增量**：已建立 `IPaymentProvider` provider-neutral、local-only 的新增、切換、修改、移除與 default selection screen contract；無 vault／migration／API 時，所有操作維持 `owner_gate`，unknown 為 `manual_review`。
 - [x] **付款方式 T1 展示交接資產**：已建立五語系 `DEMO_MOCK` screen contract／fixture／focused harness；待 T1 以 pinned commit 掛載並補 RWD、keyboard、ARIA-live、reduced-motion 與 customer-journey evidence。
 - [ ] **付款方式正式 self-service implementation Gate**：待中央核准 payment method vault／tokenization owner、`IPaymentProvider` extension、migration／tenant constraint／audit schema、sandbox 與 PCI／PII boundary 後，才可開發新增、切換、修改、移除 API。
+- [x] **唯一 integration baseline 固定與 inventory**：已建立 `orderai.integration_entry`，完整索引 subscription、billing／usage／invoice、payment-method management 與 parse／risk／review／Queue 的既有 T1 contract／fixture／evidence；未複製 StallPay-V2 core。
+- [x] **T1 fixture 缺口補齊**：已提供可用合成資料驗證的 parse／risk／review／Queue 入口索引與 fail-closed presentation contract；正式 route、付款、發票、provider、OAuth 與外部服務維持 Gate。

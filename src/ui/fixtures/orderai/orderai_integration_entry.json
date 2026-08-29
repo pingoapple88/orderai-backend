@@ -1,0 +1,71 @@
+{
+  "fixtureVersion": "ORDERAI-INTEGRATION-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {
+      "id": "direct-independent-entry",
+      "locale": "zh-Hant-TW",
+      "channel": "direct",
+      "view": "independent_sales_entry",
+      "subscriptionStatus": "pending_payment",
+      "paymentStatus": "pending",
+      "entitlementStatus": "pending_activation",
+      "invoiceStatus": "not_requested",
+      "paymentMethodStatus": "owner_gate",
+      "allowedActions": ["cancel"]
+    },
+    {
+      "id": "dealer-active-quota-and-billing",
+      "locale": "en-US",
+      "channel": "dealer",
+      "view": "channel_plan_and_ai_quota",
+      "subscriptionStatus": "active",
+      "paymentStatus": "paid",
+      "entitlementStatus": "active",
+      "usageStatus": "available",
+      "billingHistoryStatus": "available",
+      "invoiceStatus": "manual_review",
+      "paymentMethodStatus": "owner_gate",
+      "allowedActions": ["renew", "change_plan", "cancel", "request_invoice"]
+    },
+    {
+      "id": "enterprise-invoice-manual-review",
+      "locale": "th-TH",
+      "channel": "enterprise",
+      "view": "invoice_request_and_status",
+      "subscriptionStatus": "manual_review",
+      "paymentStatus": "unknown",
+      "entitlementStatus": "manual_review",
+      "invoiceStatus": "manual_review",
+      "paymentMethodStatus": "manual_review",
+      "allowedActions": [],
+      "reasonCode": "UNKNOWN_PAYMENT_STATUS"
+    },
+    {
+      "id": "parse-risk-review-required",
+      "locale": "ja-JP",
+      "channel": "direct",
+      "view": "parse_risk_review_queue",
+      "parseStatus": "needs_review",
+      "riskStatus": "needs_review",
+      "reviewStatus": "needs_review",
+      "queueStatus": "not_enqueued",
+      "reasonCode": "confidence_below_threshold",
+      "allowedActions": []
+    },
+    {
+      "id": "queue-provider-timeout-dead-letter",
+      "locale": "id-ID",
+      "channel": "dealer",
+      "view": "parse_risk_review_queue",
+      "parseStatus": "needs_review",
+      "riskStatus": "needs_review",
+      "reviewStatus": "needs_review",
+      "queueStatus": "dead_letter",
+      "reasonCode": "provider_timeout",
+      "allowedActions": []
+    }
+  ]
+}

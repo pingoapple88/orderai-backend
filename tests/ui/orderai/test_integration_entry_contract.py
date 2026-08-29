@@ -1,0 +1,44 @@
+"""Single T5 integration fixture only indexes verified local-only OrderAI states."""
+import json
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[3]
+CONTRACT_PATH = ROOT / "src/ui/contracts/orderai/orderai.integration_entry.json"
+FIXTURE_PATH = ROOT / "src/ui/fixtures/orderai/orderai_integration_entry.json"
+LOCALES = {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
+
+
+def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-01"
+    assert contract["screenId"] == "orderai.integration_entry"
+    assert contract["dataBoundary"] == "DEMO_MOCK"
+    assert contract["formalConnection"] is False
+    assert set(contract["supportedLocales"]) == LOCALES
+    baseline = contract["integrationBaseline"]
+    assert baseline["subscriptionLifecycle"]["reuseMode"] == "REUSE_AS_IS"
+    assert baseline["operationsReadiness"]["reuseMode"] == "REUSE_AS_IS"
+    assert baseline["paymentMethodManagement"] == {
+        "reuseMode": "INTEGRATE_VIA_ADAPTER",
+        "screenId": "orderai.payment_method_management",
+        "contractVersion": "ORDERAI-PAYMENT-METHOD-W2-01",
+        "availability": "owner_gate",
+    }
+    assert contract["eventBoundary"] == {"newEvents": [], "subscriptionEvents": [], "mode": "no_new_event"}
+
+
+def test_integration_fixture_covers_five_locales_and_fail_closed_paths() -> None:
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-01"
+    assert fixture["dataBoundary"] == "DEMO_MOCK"
+    assert fixture["formalConnection"] is False
+    scenarios = fixture["scenarios"]
+    assert {scenario["locale"] for scenario in scenarios} == LOCALES
+    assert {scenario.get("channel") for scenario in scenarios} == {"direct", "dealer", "enterprise"}
+    by_id = {scenario["id"]: scenario for scenario in scenarios}
+    assert by_id["enterprise-invoice-manual-review"]["paymentStatus"] == "unknown"
+    assert by_id["enterprise-invoice-manual-review"]["entitlementStatus"] == "manual_review"
+    assert by_id["parse-risk-review-required"]["riskStatus"] == "needs_review"
+    assert by_id["queue-provider-timeout-dead-letter"]["queueStatus"] == "dead_letter"
+    assert all("companyId" not in scenario and "paymentToken" not in scenario for scenario in scenarios)

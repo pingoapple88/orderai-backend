@@ -1,0 +1,26 @@
+# T5 OrderAI integration entry smoke
+
+- base_head: `4791e5af82b76003c2817cb25a5f9b75b59e9ee2`
+- data_boundary: `DEMO_MOCK`
+- formal_connection: `false`
+- scope: `single_t5_integration_entry_contract_and_fixture`
+
+## Executed smoke
+
+`pytest -q tests/ui/orderai/test_integration_entry_contract.py tests/ui/orderai/test_payment_method_management_contract.py tests/ui/orderai/test_operations_readiness_contract.py`
+
+Result: `6 passed`; exit code `0`.
+
+`python3 -m json.tool src/ui/contracts/orderai/orderai.integration_entry.json`
+
+`python3 -m json.tool src/ui/fixtures/orderai/orderai_integration_entry.json`
+
+`python3 -m compileall -q tests/ui/orderai`
+
+`git diff --check`
+
+Result: each exit code `0`.
+
+## Boundary assertion
+
+The fixture covers direct／dealer／enterprise subscription states, AI quota／billing／invoice projections, payment-method owner gates, and existing parse／risk／review／Queue fail-closed presentation. It does not run or connect to a real payment, invoice, LLM, LINE, Redis, database, provider callback, OAuth, or EventBus transport.
