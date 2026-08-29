@@ -1,0 +1,26 @@
+# T5 OrderAI restart coverage smoke
+
+- verified_snapshot: `79f33bd6c19f1380d48ec66560e2a3e6bf69117a`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
+- data_boundary: `DEMO_MOCK`
+- formal_connection: `false`
+
+## Executed focused smoke
+
+`pytest -q tests/ui/orderai/test_subscription_lifecycle_contract.py tests/ui/orderai/test_operations_readiness_contract.py tests/ui/orderai/test_payment_method_management_contract.py tests/ui/orderai/test_integration_entry_contract.py`
+
+Result: `8 passed`; exit code `0`.
+
+## Additional checks
+
+- JSON validation: subscription lifecycle／operations readiness／payment-method management／integration entry contracts and fixtures — exit code `0`.
+- `python3 -m compileall -q tests/ui/orderai` — exit code `0`.
+- `git diff --check` — exit code `0`.
+- external_or_secret — `MATCH=NO`.
+- synthetic_payload_sensitive_data — `MATCH=NO`.
+- shadow_or_analytics — `MATCH=NO`.
+- unapproved_event — `MATCH=NO`.
+
+## Coverage conclusion
+
+The verified snapshot already contains the required five-locale synthetic coverage for product entry, direct／dealer／enterprise, AI quota／entitlement, subscription／billing history, payment-method view／add／switch／update／reauthorize／detach／remove gates, invoice request／status／credential boundary, and parse／risk／review／Queue fail-closed states. No additional product-core change was necessary.

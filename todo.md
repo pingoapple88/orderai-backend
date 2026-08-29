@@ -25,3 +25,4 @@
 - [x] **產品入口與電子發票 fixture 覆蓋核對**：已將 direct／dealer／enterprise、AI quota／entitlement、subscription、payment-method owner gate、invoice request／status／credential boundary、billing history 納入 `ORDERAI-INTEGRATION-W2-02` T1 integration input；僅補充合成契約邊界。
 - [x] **付款方式 lifecycle contract 擴充**：已在 `DEMO_MOCK` 補齊查看、重新授權與解除綁定的安全 status；add／switch／update／reauthorize／detach 的 unknown／timeout 均 fail-closed，未建立 token、vault、callback、route 或 migration。
 - [x] **付款方式 lifecycle T1 handoff**：已升版整合入口／fixture並補 focused harness與evidence；共享 manifest 待以本輪 pinned SHA 更新，渲染／RWD／a11y evidence 仍由 T1 交付。
+- [x] **重啟覆蓋核對**：已以 `79f33bd6c19f1380d48ec66560e2a3e6bf69117a` 對照指定 hardening lineage，確認獨立產品入口、三通路、AI entitlement、subscription、payment-method lifecycle、invoice／billing history 與 parse／risk／Queue T1 fixture 均已有可用 synthetic coverage；未重做既有產品核心。
