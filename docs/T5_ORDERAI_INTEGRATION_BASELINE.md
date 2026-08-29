@@ -7,7 +7,8 @@
 | 獨立銷售入口、三通路、訂閱、entitlement、帳務、發票 | `orderai.subscription_lifecycle`／`ORDERAI-SUBSCRIPTION-W2-01` | `REUSE_AS_IS` | 僅 `DEMO_MOCK`；未知付款／發票為 `manual_review`。 |
 | AI 額度、帳務 history、invoice history、sandbox／cost／backup／EventBus readiness | `orderai.operations_readiness`／`ORDERAI-OPERATIONS-W2-01` | `REUSE_AS_IS` | 僅 local mock／mapping-only；backup 為 `owner_gate`。 |
 | 付款方式管理 | `orderai.payment_method_management`／`ORDERAI-PAYMENT-METHOD-W2-01` | `INTEGRATE_VIA_ADAPTER` | 新增、切換、修改、移除均為 `owner_gate`；不可收集 payment token、卡號或帳戶資料。 |
-| parse、risk、review、Queue／dead-letter | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-01` | `REUSE_AS_IS` | 只呈現既有 `needs_review`、`provider_timeout`、`dead_letter` fail-closed state。 |
+| 電子發票憑證 | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-02` | `INTEGRATE_VIA_ADAPTER` | 沿用 `IInvoiceProvider.issue` 的 status-only projection；憑證、reference、下載 URL 與 provider payload 均不公開，且 credential access 為 `owner_gate`。 |
+| parse、risk、review、Queue／dead-letter | `orderai.integration_entry`／`ORDERAI-INTEGRATION-W2-02` | `REUSE_AS_IS` | 只呈現既有 `needs_review`、`provider_timeout`、`dead_letter` fail-closed state。 |
 
 ## T1 input
 

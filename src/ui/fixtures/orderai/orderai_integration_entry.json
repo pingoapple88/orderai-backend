@@ -1,6 +1,6 @@
 {
-  "fixtureVersion": "ORDERAI-INTEGRATION-FIXTURE-W2-01",
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-01",
+  "fixtureVersion": "ORDERAI-INTEGRATION-FIXTURE-W2-02",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-02",
   "dataBoundary": "DEMO_MOCK",
   "formalConnection": false,
   "scenarios": [
@@ -13,6 +13,7 @@
       "paymentStatus": "pending",
       "entitlementStatus": "pending_activation",
       "invoiceStatus": "not_requested",
+      "invoiceCredentialStatus": "not_requested",
       "paymentMethodStatus": "owner_gate",
       "allowedActions": ["cancel"]
     },
@@ -27,6 +28,7 @@
       "usageStatus": "available",
       "billingHistoryStatus": "available",
       "invoiceStatus": "manual_review",
+      "invoiceCredentialStatus": "owner_gate",
       "paymentMethodStatus": "owner_gate",
       "allowedActions": ["renew", "change_plan", "cancel", "request_invoice"]
     },
@@ -39,6 +41,7 @@
       "paymentStatus": "unknown",
       "entitlementStatus": "manual_review",
       "invoiceStatus": "manual_review",
+      "invoiceCredentialStatus": "manual_review",
       "paymentMethodStatus": "manual_review",
       "allowedActions": [],
       "reasonCode": "UNKNOWN_PAYMENT_STATUS"
@@ -52,6 +55,7 @@
       "riskStatus": "needs_review",
       "reviewStatus": "needs_review",
       "queueStatus": "not_enqueued",
+      "invoiceCredentialStatus": "not_applicable",
       "reasonCode": "confidence_below_threshold",
       "allowedActions": []
     },
@@ -64,6 +68,7 @@
       "riskStatus": "needs_review",
       "reviewStatus": "needs_review",
       "queueStatus": "dead_letter",
+      "invoiceCredentialStatus": "not_applicable",
       "reasonCode": "provider_timeout",
       "allowedActions": []
     }

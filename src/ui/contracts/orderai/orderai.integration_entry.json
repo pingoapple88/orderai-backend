@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-01",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-02",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -40,12 +40,14 @@
     "channel_plan_and_ai_quota",
     "subscription_entitlement_and_billing",
     "invoice_request_and_status",
+    "invoice_credential_boundary",
     "payment_method_management_gate",
     "parse_risk_review_queue"
   ],
   "failClosed": {
     "unknownPayment": "manual_review",
     "unknownInvoice": "manual_review",
+    "invoiceCredential": "owner_gate",
     "unknownProvider": "manual_review",
     "missingScope": "blocked",
     "paymentMethodAction": "owner_gate",
@@ -58,6 +60,8 @@
     "paymentToken",
     "paymentReference",
     "providerReference",
+    "invoiceCredential",
+    "invoiceDownloadUrl",
     "cardNumber",
     "bankAccount"
   ],
@@ -65,5 +69,13 @@
     "newEvents": [],
     "subscriptionEvents": [],
     "mode": "no_new_event"
+  }
+
+  ,"invoiceCredentialBoundary": {
+    "providerInterface": "IInvoiceProvider.issue",
+    "publicStatusOnly": true,
+    "credentialAccess": "owner_gate",
+    "unknownResult": "manual_review",
+    "forbiddenPublicFields": ["reference", "credential", "downloadUrl", "providerPayload"]
   }
 }

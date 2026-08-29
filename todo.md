@@ -21,3 +21,5 @@
 - [ ] **付款方式正式 self-service implementation Gate**：待中央核准 payment method vault／tokenization owner、`IPaymentProvider` extension、migration／tenant constraint／audit schema、sandbox 與 PCI／PII boundary 後，才可開發新增、切換、修改、移除 API。
 - [x] **唯一 integration baseline 固定與 inventory**：已建立 `orderai.integration_entry`，完整索引 subscription、billing／usage／invoice、payment-method management 與 parse／risk／review／Queue 的既有 T1 contract／fixture／evidence；未複製 StallPay-V2 core。
 - [x] **T1 fixture 缺口補齊**：已提供可用合成資料驗證的 parse／risk／review／Queue 入口索引與 fail-closed presentation contract；正式 route、付款、發票、provider、OAuth 與外部服務維持 Gate。
+- [x] **指定 hardening lineage 核對**：已確認目前 T5 branch 對指定 `99279894d347f2dd2d19a07735d7e937e0547f39` 為 descendant，且差異不含 OAuth paths、parse／risk／Queue／plans／billing_records 的重做。
+- [x] **產品入口與電子發票 fixture 覆蓋核對**：已將 direct／dealer／enterprise、AI quota／entitlement、subscription、payment-method owner gate、invoice request／status／credential boundary、billing history 納入 `ORDERAI-INTEGRATION-W2-02` T1 integration input；僅補充合成契約邊界。
