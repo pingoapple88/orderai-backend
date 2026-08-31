@@ -11,7 +11,7 @@ LOCALES = {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
 def test_canonical_module_input_is_pinned_read_only_and_synthetic() -> None:
     contract = json.loads(PATH.read_text(encoding="utf-8"))
 
-    assert contract["canonicalInputVersion"] == "ORDERAI-CANONICAL-INPUT-W2-03"
+    assert contract["canonicalInputVersion"] == "ORDERAI-CANONICAL-INPUT-W2-04"
     assert contract["moduleId"] == "orderai"
     assert contract["repository"] == "pingoapple88/orderai-backend"
     assert contract["branch"] == "feat/orderai-self-service-subscriptions"
@@ -40,7 +40,7 @@ def test_canonical_routes_and_fixtures_cover_required_t1_input() -> None:
     assert routes["/api/v1/orderai/subscriptions/status"]["errorOrBlocked"]["unknownPaymentOrInvoice"] == "manual_review"
     assert routes["/api/v1/orderai/subscriptions/usage"]["errorOrBlocked"]["unknownQuotaOrEntitlement"] == "manual_review"
     assert routes["/api/v1/orderai/subscriptions/invoices"]["errorOrBlocked"]["unknownInvoice"] == "manual_review"
-    assert {"orderai.parse_result", "orderai.risk_review", "orderai.queue", "orderai.subscription_lifecycle"}.issubset(fixtures)
+    assert {"orderai.parse_result", "orderai.risk_review", "orderai.queue", "orderai.subscription_lifecycle", "orderai.expo_p0_handoff"}.issubset(fixtures)
     assert fixtures["orderai.payment_method_management"]["availability"] == "owner_gate"
     assert all(item["mode"] == "DEMO_MOCK" for item in fixtures.values())
 

@@ -32,3 +32,4 @@
 - [ ] **ROUND_1 R1 handoff**：已完成 synthetic scoped smoke與scan；待 Git snapshot、T5 shared board／Manifest／evidence index同步後標示 `READY_FOR_R1`。資料庫相依的既有 risk／queue focused unit tests受本機 `MySQLdb` driver 缺失阻塞，未宣稱通過。
 - [x] **T1 canonical module input**：已建立 `orderai` read-only route contract、machine-readable canonical snapshot與evidence index，固定 repository／branch／source asset commit／parent／rollback、contract／fixture／availability／mode／evidence_level與已知 Gate。
 - [x] **T1 canonical handoff同步**：已完成 canonical input focused validation、Git snapshot、shared board／Manifest／XREQ更新並標示 `READY_FOR_T1`。正式 OAuth、資料庫寫入、payment／invoice provider仍維持 `DEMO_MOCK`／`BLOCKED`；T1 route／RWD／a11y呈現證據仍待回填。
+- [x] **Expo P0 scenario completeness 核對**：既有 individual fixture 缺少單一跨screen情境索引，已新增 `orderai.expo_p0_handoff`，提供高信心 success、低於0.85 threshold 的 `needs_review`、unknown／`manual_review`，且每一情境均可追溯 route、fixture、output、human action、fallback、source／rollback及evidence；未變更產品核心。

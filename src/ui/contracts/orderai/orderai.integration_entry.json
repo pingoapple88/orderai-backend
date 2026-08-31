@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-08",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-09",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -52,7 +52,13 @@
     "canonicalModuleInput": {
       "reuseMode": "REUSE_AS_IS",
       "contractPath": "src/ui/contracts/orderai/orderai.canonical_module_input.json",
-      "contractVersion": "ORDERAI-CANONICAL-INPUT-W2-03",
+      "contractVersion": "ORDERAI-CANONICAL-INPUT-W2-04",
+      "availability": "available_synthetic"
+    },
+    "expoP0Handoff": {
+      "reuseMode": "INTEGRATE_VIA_ADAPTER",
+      "screenId": "orderai.expo_p0_handoff",
+      "contractVersion": "ORDERAI-EXPO-P0-HANDOFF-W2-01",
       "availability": "available_synthetic"
     },
     "smartAgricultureExpo": {
@@ -73,7 +79,8 @@
     "parse_result",
     "risk_review",
     "queue",
-    "smart_agriculture_expo"
+    "smart_agriculture_expo",
+    "expo_p0_handoff"
   ],
   "failClosed": {
     "unknownPayment": "manual_review",

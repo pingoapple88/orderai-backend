@@ -1,5 +1,5 @@
 {
-  "canonicalInputVersion": "ORDERAI-CANONICAL-INPUT-W2-03",
+  "canonicalInputVersion": "ORDERAI-CANONICAL-INPUT-W2-04",
   "moduleId": "orderai",
   "repository": "pingoapple88/orderai-backend",
   "branch": "feat/orderai-self-service-subscriptions",
@@ -95,12 +95,14 @@
     {"screenId": "orderai.risk_review", "fixturePath": "src/ui/fixtures/orderai/orderai_risk_review.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
     {"screenId": "orderai.queue", "fixturePath": "src/ui/fixtures/orderai/orderai_queue.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"},
     {"screenId": "orderai.smart_agri_expo", "fixturePath": "src/ui/fixtures/orderai/orderai_smart_agri_expo.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"}
+    ,{"screenId": "orderai.expo_p0_handoff", "fixturePath": "src/ui/fixtures/orderai/orderai_expo_p0_handoff.json", "owner": "T5", "availability": "available_synthetic", "mode": "DEMO_MOCK", "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE"}
   ],
   "presentationScope": {
     "parse": ["approved_at_0_85", "low_confidence_needs_review", "catalog_product_unmatched", "provider_timeout", "blocked_when_scope_missing"],
     "riskReview": ["approved", "needs_review", "manual_review", "blocked", "hash_only_audit_reference"],
     "queue": ["loading", "empty", "duplicate", "limited_retry", "dead_letter_manual_review", "error", "blocked"],
-    "selfService": ["direct", "dealer", "enterprise", "subscription_status", "usage_status", "billing_history", "invoice_status_only", "payment_method_owner_gate"]
+    "selfService": ["direct", "dealer", "enterprise", "subscription_status", "usage_status", "billing_history", "invoice_status_only", "payment_method_owner_gate"],
+    "expoP0": ["high_confidence_success", "low_confidence_needs_review", "unknown_manual_review", "five_locale_keys", "mobile_390x844"]
   },
   "explicitlyPlannedOrBlocked": [
     {"capability": "T1 visual route mounting", "status": "PLANNED", "owner": "T1", "reason": "pinned manifest route未提供"},

@@ -1,0 +1,38 @@
+# T5 Expo P0 DEMO_MOCK handoff evidence
+
+- source_head_before_commit: `80187f3bde8e9e19261ebdc596af4e9805150887`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
+- mode: `DEMO_MOCK`
+- formal_connection: `false`
+- scope: `read_only_expo_p0_handoff_fixture_only`
+
+## Gap identified and resolved
+
+Existing parse／risk／queue fixtures already covered the individual statuses, but did not provide one three-scenario handoff in which every scenario carried `screenId`／route／input fixture／parsed output／confidence／threshold／risk status／human action／fallback／source commit／evidence／rollback. `orderai.expo_p0_handoff` was added solely to provide that read-only presentation index.
+
+## Executed focused smoke
+
+```text
+pytest -q tests/ui/orderai/test_expo_p0_handoff_contract.py \
+  tests/ui/orderai/test_canonical_module_input_contract.py \
+  tests/ui/orderai/test_integration_entry_contract.py \
+  tests/ui/orderai/test_parse_risk_queue_contracts.py
+```
+
+Result: **`11 passed`**, exit code **`0`**.
+
+## Additional checks
+
+| Check | Result |
+|---|---|
+| JSON validation: Expo P0／canonical／integration contracts and fixtures | PASS, exit code `0` |
+| `python3 -m compileall -q tests/ui/orderai` | PASS, exit code `0` |
+| `git diff --check` | PASS, exit code `0` |
+| external／secret scan | PASS, `MATCH=NO` |
+| fixture PII／credential payload scan | PASS, `MATCH=NO` |
+| shadow／tracking scan | PASS, `MATCH=NO` |
+| unapproved event scan | PASS, `MATCH=NO` |
+
+## Fail-closed assertion
+
+The high-confidence scenario is the existing 0.85 threshold boundary and is presentation-only: it cannot write an order. The 0.84 scenario is `needs_review` with `manual_review_required`. The unknown scenario is `manual_review`, uses `manual_review_no_auto_retry_no_duplicate_order`, and carries no live provider or queue action. All three include redacted previews, UTC time, tenant scope rule, server-derived idempotency reference, and `ai.order.decision` audit intent.

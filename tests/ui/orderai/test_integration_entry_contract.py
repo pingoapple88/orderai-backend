@@ -11,7 +11,7 @@ LOCALES = {"zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"}
 
 def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
-    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-08"
+    assert contract["screenContractVersion"] == "ORDERAI-INTEGRATION-W2-09"
     assert contract["screenId"] == "orderai.integration_entry"
     assert contract["dataBoundary"] == "DEMO_MOCK"
     assert contract["formalConnection"] is False
@@ -37,10 +37,16 @@ def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
     assert baseline["canonicalModuleInput"] == {
         "reuseMode": "REUSE_AS_IS",
         "contractPath": "src/ui/contracts/orderai/orderai.canonical_module_input.json",
-        "contractVersion": "ORDERAI-CANONICAL-INPUT-W2-03",
+        "contractVersion": "ORDERAI-CANONICAL-INPUT-W2-04",
         "availability": "available_synthetic",
     }
-    assert "smart_agriculture_expo" in contract["requiredViews"]
+    assert baseline["expoP0Handoff"] == {
+        "reuseMode": "INTEGRATE_VIA_ADAPTER",
+        "screenId": "orderai.expo_p0_handoff",
+        "contractVersion": "ORDERAI-EXPO-P0-HANDOFF-W2-01",
+        "availability": "available_synthetic",
+    }
+    assert {"smart_agriculture_expo", "expo_p0_handoff"}.issubset(contract["requiredViews"])
     assert {"parse_result", "risk_review", "queue"}.issubset(contract["requiredViews"])
     assert contract["invoiceCredentialBoundary"] == {
         "providerInterface": "IInvoiceProvider.issue",
@@ -54,7 +60,7 @@ def test_integration_entry_contract_keeps_one_local_only_baseline() -> None:
 
 def test_integration_fixture_covers_five_locales_and_fail_closed_paths() -> None:
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-08"
+    assert fixture["fixtureVersion"] == "ORDERAI-INTEGRATION-FIXTURE-W2-09"
     assert fixture["dataBoundary"] == "DEMO_MOCK"
     assert fixture["formalConnection"] is False
     scenarios = fixture["scenarios"]

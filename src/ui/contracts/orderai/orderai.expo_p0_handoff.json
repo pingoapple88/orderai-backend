@@ -1,0 +1,34 @@
+{
+  "screenContractVersion": "ORDERAI-EXPO-P0-HANDOFF-W2-01",
+  "screenId": "orderai.expo_p0_handoff",
+  "moduleId": "orderai",
+  "owner": "T5",
+  "mode": "DEMO_MOCK",
+  "availability": "available_synthetic",
+  "evidenceLevel": "SYNTHETIC_CONTRACT_AND_FOCUSED_SMOKE",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "mobilePresentation": {
+    "targetViewport": {"width": 390, "height": 844},
+    "requiredFields": ["scenarioTitleKey", "parseStatus", "confidence", "threshold", "riskStatus", "humanAction", "fallback", "demoMockBadge"]
+  },
+  "scopeAndSafety": {
+    "scopeSource": "server_principal_only",
+    "timeRule": "UTC_RFC3339_only",
+    "piiRedactionRequired": true,
+    "auditIntent": "ai.order.decision",
+    "idempotencySource": "server_derived_line_event_hash_only",
+    "noAutomaticOrderCreate": true,
+    "noAutomaticRetry": true,
+    "newEvents": []
+  },
+  "failClosed": {
+    "confidenceThreshold": 0.85,
+    "lowConfidence": "needs_review",
+    "unknownResult": "manual_review",
+    "missingTenantScope": "blocked",
+    "providerTimeout": "manual_review"
+  },
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "rawMessage", "customerName", "customerPhone", "customerEmail", "lineUserId", "paymentToken", "providerReference", "invoiceCredential"],
+  "eventBoundary": {"newEvents": [], "mode": "no_new_event"}
+}
