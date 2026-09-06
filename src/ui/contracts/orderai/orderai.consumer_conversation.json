@@ -1,0 +1,36 @@
+{
+  "screenContractVersion": "ORDERAI-CONSUMER-CONVERSATION-W2-01",
+  "screenId": "orderai.consumer_conversation",
+  "featureId": "orderai",
+  "audience": "consumer",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "timeRule": "UTC_RFC3339_only",
+  "requiredViews": ["loading", "empty", "processing", "success", "needs_review", "manual_review", "blocked", "unknown", "error"],
+  "consumerVisibleFields": ["conversation", "productSummary", "quantitySummary", "pickupPrompt", "customerStatus", "draftNotice", "notification", "nextAction"],
+  "consumerHiddenFields": ["confidenceScore", "threshold", "riskStatus", "queueStatus", "queueAttempt", "deadLetter", "erpFields", "providerPayload", "auditReference"],
+  "statusProjection": {
+    "processing": "processing",
+    "success": "request_received",
+    "needs_review": "awaiting_confirmation",
+    "manual_review": "awaiting_confirmation",
+    "blocked": "action_needed",
+    "unknown": "awaiting_confirmation",
+    "error": "system_unavailable"
+  },
+  "draftBoundary": {
+    "consumerSubmission": "request_draft_only",
+    "formalOrder": false,
+    "automaticOrderCreation": false,
+    "allowedActions": ["confirm_product_quantity", "submit_request_draft"]
+  },
+  "piiBoundary": {
+    "redactionRequired": true,
+    "displayOnlyTokens": ["[REDACTED_NAME]", "[REDACTED_PHONE]", "[REDACTED_EMAIL]"],
+    "rawConversation": "forbidden"
+  },
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "confidenceScore", "threshold", "riskStatus", "queueStatus", "queueAttempt", "deadLetter", "erpOrderId", "rawMessage", "customerName", "customerPhone", "customerEmail", "lineUserId", "paymentToken"],
+  "eventBoundary": {"newEvents": [], "mode": "no_new_event"}
+}

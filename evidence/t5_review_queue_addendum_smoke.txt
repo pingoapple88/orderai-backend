@@ -1,0 +1,41 @@
+# T5 OrderAI Review Queue Addendum — focused evidence
+
+- source_head_before_snapshot: `2ee09441cb07388fb1e825d0243ae92e74129278`
+- source_parent_rollback: `80187f3bde8e9e19261ebdc596af4e9805150887`
+- hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
+- mode: `DEMO_MOCK`
+- formal_connection: `false`
+- formal_order_creation: `false`
+- scope: `consumer_conversation_owner_review_queue_provider_neutral_blocked_handoff`
+
+## Focused smoke actually executed
+
+```text
+pytest -q tests/ui/orderai/test_review_queue_addendum_contract.py \
+  tests/ui/orderai/test_canonical_module_input_contract.py \
+  tests/ui/orderai/test_integration_entry_contract.py \
+  tests/ui/orderai/test_parse_risk_queue_contracts.py \
+  tests/ui/orderai/test_expo_p0_handoff_contract.py
+```
+
+Result: **`14 passed`**, exit code **`0`**.
+
+## Additional checks actually executed
+
+| Check | Result |
+|---|---|
+| JSON validation for all addendum／canonical／integration contract and fixture files | PASS, exit code `0` |
+| `python3 -m compileall -q tests/ui/orderai` | PASS, exit code `0` |
+| `git diff --check` | PASS, exit code `0` |
+| external／secret scan | PASS, `MATCH=NO` |
+| fixture PII／credential payload scan | PASS, `MATCH=NO` |
+| shadow／tracking scan | PASS, `MATCH=NO` |
+| formal write／unapproved event scan | PASS, `MATCH=NO` |
+
+## Fail-closed assertions
+
+The consumer contract deliberately hides confidence, threshold, risk, queue, ERP and audit fields. The owner review queue maps confidence below `0.85`, shortages, conflicts and unknown results to `manual_review`; it exposes only `save_draft` and forbids automatic order creation, StallPay submission, ERP writes and provider retry. `orderai.confirmation_handoff` supplies provider-neutral view-model field names only: endpoint, HTTP method, formal creation responsibility, payload transport and ERP write remain `[TODO: 待 T2／中央 contract owner 確認]`／`BLOCKED`.
+
+## Non-claims
+
+This evidence does **not** verify a live OrderAI／StallPay／ERP endpoint, formal OAuth, production queue, database write, payment, invoice, tax, or customer PII workflow. These capabilities remain blocked pending the appropriate owner contracts and environment approval.

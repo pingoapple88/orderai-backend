@@ -1,0 +1,14 @@
+{
+  "fixtureVersion": "ORDERAI-CONFIRMATION-HANDOFF-FIXTURE-W2-01",
+  "interfaceContractVersion": "ORDERAI-CONFIRMATION-HANDOFF-W2-01",
+  "mode": "DEMO_MOCK",
+  "availability": "BLOCKED",
+  "formalConnection": false,
+  "scenarios": [
+    {"id": "handoff-blocked-contract-unconfirmed", "locale": "zh-Hant-TW", "draftReference": "draft_synthetic_pending_001", "draftStatus": "blocked", "redactedItemSummary": "青江菜", "quantitySummary": "2 份", "reasonCodes": ["T2_order_creation_responsibility_unconfirmed", "payload_contract_unconfirmed"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "nextAction": "save_draft_only"},
+    {"id": "handoff-blocked-endpoint-unconfirmed", "locale": "en-US", "draftReference": "draft_synthetic_pending_002", "draftStatus": "blocked", "redactedItemSummary": "Bok choy", "quantitySummary": "2 bundles", "reasonCodes": ["StallPay_endpoint_unconfirmed", "idempotency_contract_unconfirmed"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "nextAction": "save_draft_only"},
+    {"id": "handoff-blocked-erp-write", "locale": "th-TH", "draftReference": "draft_synthetic_pending_003", "draftStatus": "blocked", "redactedItemSummary": "ชุดผัก", "quantitySummary": "1 ชุด", "reasonCodes": ["ERP_write_not_authorized"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "nextAction": "save_draft_only"},
+    {"id": "handoff-blocked-manual-review", "locale": "ja-JP", "draftReference": "draft_synthetic_pending_004", "draftStatus": "blocked", "redactedItemSummary": "野菜セット", "quantitySummary": "1 セット", "reasonCodes": ["manual_review_required"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "nextAction": "save_draft_only"},
+    {"id": "handoff-blocked-unknown", "locale": "id-ID", "draftReference": "draft_synthetic_pending_005", "draftStatus": "blocked", "redactedItemSummary": "Paket sayur", "quantitySummary": "1 paket", "reasonCodes": ["unknown_result"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "nextAction": "save_draft_only"}
+  ]
+}

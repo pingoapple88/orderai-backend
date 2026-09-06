@@ -1,0 +1,24 @@
+{
+  "interfaceContractVersion": "ORDERAI-CONFIRMATION-HANDOFF-W2-01",
+  "interfaceId": "orderai.confirmation_handoff",
+  "producer": "orderai",
+  "consumer": "StallPay／T2 pending confirmation queue",
+  "owner": "T5",
+  "mode": "DEMO_MOCK",
+  "availability": "BLOCKED",
+  "formalConnection": false,
+  "endpoint": "[TODO: 待 T2／中央 contract owner 確認]",
+  "httpMethod": "[TODO: 待 T2／中央 contract owner 確認]",
+  "formalOrderCreation": false,
+  "providerNeutralDraftViewModel": {
+    "requiredFields": ["draftReference", "draftStatus", "redactedItemSummary", "quantitySummary", "reasonCodes", "auditReference", "idempotencyReference", "createdAt"],
+    "scopeSource": "server_principal_only",
+    "timeRule": "UTC_RFC3339_only",
+    "idempotencySource": "server_derived_line_event_hash_only",
+    "pii": "redacted_only"
+  },
+  "blockedReasons": ["T2_order_creation_responsibility_unconfirmed", "StallPay_endpoint_unconfirmed", "payload_contract_unconfirmed", "idempotency_contract_unconfirmed", "ERP_write_not_authorized"],
+  "requiredCrossTeamRequests": ["XREQ-EXPO-0002", "XREQ-EXPO-0003", "XREQ-EXPO-0005"],
+  "fallback": {"status": "blocked", "action": "save_draft_only", "automaticOrderCreation": false, "automaticRetry": false},
+  "forbidden": {"liveFetch": true, "formalOrderWrite": true, "erpWrite": true, "payment": true, "invoice": true, "newEvents": true}
+}

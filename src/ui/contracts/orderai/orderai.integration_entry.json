@@ -1,5 +1,5 @@
 {
-  "screenContractVersion": "ORDERAI-INTEGRATION-W2-09",
+  "screenContractVersion": "ORDERAI-INTEGRATION-W2-10",
   "screenId": "orderai.integration_entry",
   "featureId": "orderai",
   "dataBoundary": "DEMO_MOCK",
@@ -66,6 +66,24 @@
       "screenId": "orderai.smart_agri_expo",
       "contractVersion": "ORDERAI-SMART-AGRI-EXPO-W2-01",
       "availability": "available_synthetic"
+    },
+    "consumerConversation": {
+      "reuseMode": "INTEGRATE_VIA_ADAPTER",
+      "screenId": "orderai.consumer_conversation",
+      "contractVersion": "ORDERAI-CONSUMER-CONVERSATION-W2-01",
+      "availability": "available_synthetic"
+    },
+    "reviewQueue": {
+      "reuseMode": "INTEGRATE_VIA_ADAPTER",
+      "screenId": "orderai.review_queue",
+      "contractVersion": "ORDERAI-REVIEW-QUEUE-W2-01",
+      "availability": "available_synthetic"
+    },
+    "confirmationHandoff": {
+      "reuseMode": "NEEDS_OWNER_DECISION",
+      "interfaceId": "orderai.confirmation_handoff",
+      "contractVersion": "ORDERAI-CONFIRMATION-HANDOFF-W2-01",
+      "availability": "BLOCKED"
     }
   },
   "requiredViews": [
@@ -80,7 +98,10 @@
     "risk_review",
     "queue",
     "smart_agriculture_expo",
-    "expo_p0_handoff"
+    "expo_p0_handoff",
+    "consumer_conversation",
+    "review_queue",
+    "confirmation_handoff"
   ],
   "failClosed": {
     "unknownPayment": "manual_review",

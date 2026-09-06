@@ -1,0 +1,37 @@
+{
+  "screenContractVersion": "ORDERAI-REVIEW-QUEUE-W2-01",
+  "screenId": "orderai.review_queue",
+  "featureId": "orderai",
+  "audience": "owner",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "supportedLocales": ["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"],
+  "scopeSource": "server_principal_only",
+  "timeRule": "UTC_RFC3339_only",
+  "confidenceThreshold": 0.85,
+  "requiredViews": ["loading", "empty", "processing", "success", "needs_review", "manual_review", "blocked", "unknown", "error"],
+  "ownerVisibleFields": ["draftReference", "itemSummary", "quantitySummary", "noteSummary", "sourceLabel", "confidenceScore", "threshold", "reviewFlags", "draftStatus", "allowedActions", "auditReference", "createdAt"],
+  "statusMapping": {
+    "confidenceAtOrAboveThreshold": "success",
+    "confidenceBelowThreshold": "manual_review",
+    "unmatchedItem": "manual_review",
+    "stockShortage": "manual_review",
+    "conflictDetected": "manual_review",
+    "unknownResult": "manual_review",
+    "providerError": "error",
+    "tenantScopeUnavailable": "blocked"
+  },
+  "reviewBoundary": {
+    "formalOrderCreation": false,
+    "saveDraftOnly": true,
+    "automaticOrderCreation": false,
+    "automaticApprovalForUnknown": false,
+    "humanConfirmationOwner": "T2／中央 contract owner",
+    "forbiddenActions": ["create_order", "send_to_erp", "submit_stallpay_order", "retry_provider"]
+  },
+  "idempotencyBoundary": {"source": "server_derived_line_event_hash_only", "clientIdempotencyKey": "forbidden", "duplicateResult": "blocked"},
+  "piiBoundary": {"redactionRequired": true, "rawContent": "forbidden", "displayOnlyTokens": ["[REDACTED_NAME]", "[REDACTED_PHONE]", "[REDACTED_EMAIL]"]},
+  "auditReference": {"action": "ai.order.decision", "safeFields": ["source_sha256", "status", "reason_codes", "threshold", "confidence_score"], "rawContent": "forbidden"},
+  "forbiddenClientFields": ["companyId", "storeId", "userId", "rawMessage", "lineEventId", "customerName", "customerPhone", "customerEmail", "lineUserId", "erpOrderId", "paymentToken", "providerReference"],
+  "eventBoundary": {"newEvents": [], "mode": "no_new_event"}
+}

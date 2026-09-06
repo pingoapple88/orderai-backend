@@ -1,0 +1,16 @@
+{
+  "fixtureVersion": "ORDERAI-REVIEW-QUEUE-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-REVIEW-QUEUE-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {"id": "review-loading", "locale": "zh-Hant-TW", "view": "loading", "draftStatus": "processing", "allowedActions": [], "reasonCodes": ["SYNTHETIC_LOADING"]},
+    {"id": "review-success-save-draft-only", "locale": "en-US", "view": "success", "draftReference": "draft_synthetic_approved_001", "itemSummary": "Bok choy", "quantitySummary": "2 bundles", "noteSummary": "[REDACTED_NAME] request", "sourceLabel": "DEMO_MOCK conversation", "confidenceScore": 0.85, "threshold": 0.85, "reviewFlags": [], "draftStatus": "success", "allowedActions": ["save_draft"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "reasonCodes": ["SYNTHETIC_THRESHOLD_APPROVED"]},
+    {"id": "review-low-confidence-manual-review", "locale": "th-TH", "view": "manual_review", "draftReference": "draft_synthetic_low_confidence_002", "itemSummary": "ชุดผัก", "quantitySummary": "1 ชุด", "noteSummary": "[REDACTED_PHONE] pickup pending", "sourceLabel": "DEMO_MOCK conversation", "confidenceScore": 0.84, "threshold": 0.85, "reviewFlags": ["low_confidence"], "draftStatus": "manual_review", "allowedActions": ["save_draft"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "reasonCodes": ["confidence_below_threshold"]},
+    {"id": "review-shortage-and-conflict", "locale": "ja-JP", "view": "manual_review", "draftReference": "draft_synthetic_stock_conflict_003", "itemSummary": "野菜セット", "quantitySummary": "1 セット", "noteSummary": "受取時刻は確認待ち", "sourceLabel": "DEMO_MOCK conversation", "confidenceScore": 0.85, "threshold": 0.85, "reviewFlags": ["stock_shortage", "pickup_conflict"], "draftStatus": "manual_review", "allowedActions": ["save_draft"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "reasonCodes": ["stock_shortage", "pickup_conflict"]},
+    {"id": "review-unknown-manual-review", "locale": "id-ID", "view": "unknown", "draftReference": "draft_synthetic_unknown_004", "itemSummary": "Paket sayur", "quantitySummary": "1 paket", "noteSummary": "[REDACTED_EMAIL] source unavailable", "sourceLabel": "DEMO_MOCK conversation", "confidenceScore": null, "threshold": 0.85, "reviewFlags": ["unknown_result"], "draftStatus": "manual_review", "allowedActions": ["save_draft"], "auditReference": "source_sha256_only", "idempotencyReference": "line_event_hash_only", "createdAt": "2026-09-06T09:38:28Z", "reasonCodes": ["unknown_result"]},
+    {"id": "review-scope-blocked", "locale": "zh-Hant-TW", "view": "blocked", "draftStatus": "blocked", "allowedActions": [], "reasonCodes": ["tenant_scope_unavailable"]},
+    {"id": "review-provider-error", "locale": "en-US", "view": "error", "draftReference": "draft_synthetic_provider_error_005", "draftStatus": "error", "allowedActions": ["save_draft"], "reasonCodes": ["provider_error"]},
+    {"id": "review-empty", "locale": "th-TH", "view": "empty", "draftStatus": "empty", "allowedActions": [], "reasonCodes": ["SYNTHETIC_EMPTY"]}
+  ]
+}

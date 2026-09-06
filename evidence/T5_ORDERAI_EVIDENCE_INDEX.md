@@ -8,5 +8,6 @@
 | Self-service restart coverage | `ec9d0ed0a59079ff48d1fb0d7c74ba7ad63eb398` | `evidence/t5_orderai_restart_coverage_smoke_2026-08-29.txt` | 8 passed. |
 | Day 31–90 read models／readiness | `1df46be561613642b61329652359e0bacce75252` | `evidence/t5_day31_90_readmodels_smoke.txt` | 13 passed. |
 | Payment-method synthetic lifecycle | `79f33bd6c19f1380d48ec66560e2a3e6bf69117a` | `evidence/t5_payment_method_lifecycle_w2_02_smoke.txt` | 6 passed. |
+| Consumer／owner review queue addendum | `2ee09441cb07388fb1e825d0243ae92e74129278` (pre-snapshot base) | `evidence/t5_review_queue_addendum_smoke.txt` | 14 passed; JSON／compile／diff／PII／external／tracking／event scans exit 0; formal handoff remains `BLOCKED`. |
 
 All entries are local-only／synthetic evidence unless explicitly stated otherwise. No entry authorizes formal provider connection, customer PII access, production data, payment processing, tax handling, OAuth merge, or database write.

@@ -1,0 +1,73 @@
+{
+  "fixtureVersion": "ORDERAI-CONSUMER-CONVERSATION-FIXTURE-W2-01",
+  "screenContractVersion": "ORDERAI-CONSUMER-CONVERSATION-W2-01",
+  "dataBoundary": "DEMO_MOCK",
+  "formalConnection": false,
+  "scenarios": [
+    {
+      "id": "consumer-processing-request",
+      "locale": "zh-Hant-TW",
+      "view": "processing",
+      "customerStatus": "processing",
+      "conversation": [{"speaker": "consumer", "text": "想訂青江菜兩份"}, {"speaker": "assistant", "text": "正在整理您的需求。"}],
+      "productSummary": "青江菜",
+      "quantitySummary": "2 份",
+      "pickupPrompt": "取貨時段待確認",
+      "draftNotice": "此為需求草稿，尚未成立訂單。",
+      "notification": "需求處理中",
+      "nextAction": "wait_for_update"
+    },
+    {
+      "id": "consumer-success-draft-submitted",
+      "locale": "en-US",
+      "view": "success",
+      "customerStatus": "request_received",
+      "conversation": [{"speaker": "consumer", "text": "Two bundles of bok choy, please."}, {"speaker": "assistant", "text": "Your request draft has been received."}],
+      "productSummary": "Bok choy",
+      "quantitySummary": "2 bundles",
+      "pickupPrompt": "Pickup time to be confirmed",
+      "draftNotice": "This is a request draft, not a confirmed order.",
+      "notification": "Request received",
+      "nextAction": "wait_for_notification"
+    },
+    {
+      "id": "consumer-needs-review-pickup",
+      "locale": "th-TH",
+      "view": "needs_review",
+      "customerStatus": "awaiting_confirmation",
+      "conversation": [{"speaker": "consumer", "text": "ต้องการผัก 1 ชุด"}, {"speaker": "assistant", "text": "กรุณายืนยันช่วงเวลารับสินค้า"}],
+      "productSummary": "ชุดผัก",
+      "quantitySummary": "1 ชุด",
+      "pickupPrompt": "กรุณายืนยันช่วงเวลารับสินค้า",
+      "draftNotice": "คำขอนี้กำลังรอการยืนยัน ไม่ใช่คำสั่งซื้อที่ยืนยันแล้ว",
+      "notification": "ต้องยืนยันข้อมูลเพิ่มเติม",
+      "nextAction": "confirm_pickup_window"
+    },
+    {
+      "id": "consumer-manual-review-shortage",
+      "locale": "ja-JP",
+      "view": "manual_review",
+      "customerStatus": "awaiting_confirmation",
+      "conversation": [{"speaker": "consumer", "text": "野菜セットを一つお願いします"}, {"speaker": "assistant", "text": "在庫状況を確認しています。"}],
+      "productSummary": "野菜セット",
+      "quantitySummary": "1 セット",
+      "pickupPrompt": "受取時間は確認待ちです",
+      "draftNotice": "これは注文確定前の依頼下書きです。",
+      "notification": "確認後にお知らせします",
+      "nextAction": "wait_for_notification"
+    },
+    {
+      "id": "consumer-blocked-scope",
+      "locale": "id-ID",
+      "view": "blocked",
+      "customerStatus": "action_needed",
+      "conversation": [{"speaker": "consumer", "text": "Saya ingin satu paket sayur."}, {"speaker": "assistant", "text": "Permintaan belum dapat diproses."}],
+      "productSummary": "Paket sayur",
+      "quantitySummary": "1 paket",
+      "pickupPrompt": "Waktu pengambilan belum tersedia",
+      "draftNotice": "Tidak ada pesanan yang dibuat.",
+      "notification": "Silakan coba lagi melalui jalur layanan yang tersedia",
+      "nextAction": "use_available_service_channel"
+    }
+  ]
+}
