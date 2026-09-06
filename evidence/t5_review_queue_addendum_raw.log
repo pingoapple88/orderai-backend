@@ -1,0 +1,38 @@
+T5 OrderAI Review Queue Addendum — raw validation record
+UTC context: 2026-09-06
+feature commit under validation: fe901b70fcfd2d00f48d576b530c49f2ed734b7b
+feature parent / rollback: 2ee09441cb07388fb1e825d0243ae92e74129278
+hardening lineage: 99279894d347f2dd2d19a07735d7e937e0547f39
+
+$ pytest -q tests/ui/orderai/test_review_queue_addendum_contract.py tests/ui/orderai/test_canonical_module_input_contract.py tests/ui/orderai/test_integration_entry_contract.py tests/ui/orderai/test_parse_risk_queue_contracts.py tests/ui/orderai/test_expo_p0_handoff_contract.py
+..............                                                           [100%]
+14 passed in 0.12s
+EXIT_CODE=0
+
+$ python3 -m json.tool <each addendum/canonical/integration JSON contract and fixture>
+EXIT_CODE=0
+
+$ python3 -m compileall -q tests/ui/orderai
+EXIT_CODE=0
+
+$ git diff --check
+EXIT_CODE=0
+
+$ precise external/secret scan
+MATCH=NO
+EXIT_CODE=0
+
+$ precise fixture PII/credential payload scan
+MATCH=NO
+EXIT_CODE=0
+
+$ precise shadow/tracking scan
+MATCH=NO
+EXIT_CODE=0
+
+$ precise formal-write/unapproved-event scan
+MATCH=NO
+MATCH=NO
+EXIT_CODE=0
+
+Scope note: This record validates local `DEMO_MOCK` contracts and fixtures only. No formal OrderAI, StallPay, ERP, OAuth, database, queue, payment, invoice, tax, or customer PII operation was called.

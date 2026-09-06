@@ -1,7 +1,8 @@
 # T5 OrderAI Review Queue Addendum — focused evidence
 
-- source_head_before_snapshot: `2ee09441cb07388fb1e825d0243ae92e74129278`
-- source_parent_rollback: `80187f3bde8e9e19261ebdc596af4e9805150887`
+- source_head_before_changes: `2ee09441cb07388fb1e825d0243ae92e74129278`
+- feature_commit: `fe901b70fcfd2d00f48d576b530c49f2ed734b7b`
+- feature_parent_rollback: `2ee09441cb07388fb1e825d0243ae92e74129278`
 - hardening_lineage: `99279894d347f2dd2d19a07735d7e937e0547f39`
 - mode: `DEMO_MOCK`
 - formal_connection: `false`
@@ -19,6 +20,8 @@ pytest -q tests/ui/orderai/test_review_queue_addendum_contract.py \
 ```
 
 Result: **`14 passed`**, exit code **`0`**.
+
+Raw command output is retained at `evidence/t5_review_queue_addendum_raw.log`.
 
 ## Additional checks actually executed
 
