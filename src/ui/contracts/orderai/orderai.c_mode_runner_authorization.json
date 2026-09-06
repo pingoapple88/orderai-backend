@@ -1,0 +1,33 @@
+{
+  "contractVersion": "ORDERAI-C-MODE-RUNNER-AUTHORIZATION-W2-01",
+  "featureId": "orderai",
+  "owner": "T5",
+  "status": "BLOCKED",
+  "authorizationEvidence": "not_provided",
+  "mode": "NO_RUNNER_ENABLED",
+  "formalConnection": false,
+  "runnerActions": {
+    "createOrEnable": "BLOCKED",
+    "scheduleOrEventTrigger": "BLOCKED",
+    "readProductionData": "BLOCKED",
+    "writeDatabase": "BLOCKED",
+    "callExternalProvider": "BLOCKED",
+    "publishOrConsumeEventBus": "BLOCKED"
+  },
+  "requiredOwnerInputs": [
+    "owner_and_expiry",
+    "task_definition",
+    "trigger_and_frequency",
+    "data_classification_and_tenant_scope",
+    "approved_service_and_network_boundary",
+    "idempotency_retry_and_dead_letter",
+    "event_whitelist_and_payload_contract",
+    "audit_and_disable_rollback"
+  ],
+  "existingT5Boundary": {
+    "mode": "DEMO_MOCK",
+    "allowedWork": ["synthetic_contract", "synthetic_fixture", "focused_harness"],
+    "forbiddenWork": ["runner", "schedule", "webhook", "external_connector", "production_data", "database_write", "payment", "invoice", "oauth", "new_event"]
+  },
+  "crossTeamRequest": "XREQ-T5-RUNNER-0001"
+}

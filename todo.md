@@ -36,3 +36,4 @@
 - [x] **Review Queue addendum synthetic contracts**：已建立 `orderai.consumer_conversation`、`orderai.review_queue` 與 `orderai.confirmation_handoff` 五語系 `DEMO_MOCK` contract／fixture／focused harness；consumer 與 owner 視角分離，consumer不含 confidence、queue 或 ERP 欄位。
 - [x] **Review Queue fail-closed and provider-neutral handoff**：低信心、缺貨、衝突、unknown與error只可呈現 `manual_review`／`blocked`／draft save；未自動建單，未實作 StallPay／ERP endpoint、payload或寫入；`confirmation_handoff` 維持 `[TODO: 待 T2／中央 contract owner 確認]`。
 - [x] **Review Queue addendum evidence and XREQ**：已執行本輪 focused contract／fixture smoke、compile、diff與PII／外部／secret／event scan，並更新 evidence index。T5 shared board、Manifest與XREQ將在本次snapshot推送後以final HEAD同步；T2建單責任仍為open Gate。
+- [x] **C 模式 Runner 授權回覆單核對**：未找到可讀的 `C 模式 Runner 授權回覆單 v0.1` 內容，已建立可追溯 `BLOCKED` 回覆與 `XREQ-T5-RUNNER-0001`；未啟用任何 runner、排程、外部連線、資料讀寫或背景程序。

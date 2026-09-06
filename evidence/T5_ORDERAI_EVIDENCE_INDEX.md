@@ -9,5 +9,6 @@
 | Day 31–90 read models／readiness | `1df46be561613642b61329652359e0bacce75252` | `evidence/t5_day31_90_readmodels_smoke.txt` | 13 passed. |
 | Payment-method synthetic lifecycle | `79f33bd6c19f1380d48ec66560e2a3e6bf69117a` | `evidence/t5_payment_method_lifecycle_w2_02_smoke.txt` | 6 passed. |
 | Consumer／owner review queue addendum | `fe901b70fcfd2d00f48d576b530c49f2ed734b7b` | `evidence/t5_review_queue_addendum_smoke.txt`；`evidence/t5_review_queue_addendum_raw.log` | 14 passed; JSON／compile／diff／PII／external／tracking／event scans exit 0; formal handoff remains `BLOCKED`. |
+| C 模式 Runner 授權回覆單 v0.1 | `6fe5c97b87d1a8108ce670687e5cb4844cf39252` (pre-snapshot source) | `docs/T5_C_MODE_RUNNER_AUTHORIZATION_RESPONSE_v0.1.md`；`evidence/t5_c_mode_runner_authorization_check_v0.1.log` | Authorization content not provided; JSON／diff／external／runner／write／event／tracking checks exit 0; runner remains `BLOCKED`. |
 
 All entries are local-only／synthetic evidence unless explicitly stated otherwise. No entry authorizes formal provider connection, customer PII access, production data, payment processing, tax handling, OAuth merge, or database write.
