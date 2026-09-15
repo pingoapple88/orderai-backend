@@ -1,7 +1,4 @@
-"""以 HTTP 實作可替換的聊天模型 Adapter。
-
-業務層只依賴 ILLMProvider；各家協定差異封裝在此檔，模型、端點與 Key 一律由 ENV 注入。
-"""
+"""通用 HTTP LLM Adapter；模型與端點由 ENV 注入，業務層只依賴 ILLMProvider。"""
 from __future__ import annotations
 
 import json
@@ -9,8 +6,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from app.core.config import get_settings
 from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, ILLMProvider
+from app.services.pii_redaction import redact_pii
 
 
 _ORDER_PROMPTS = {
@@ -89,10 +86,49 @@ def _parse_result(payload: Dict[str, Any], industry_type: str, provider_name: st
     )
 
 
+async def _post_json(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict | None = None,
+    payload: dict,
+    max_retries: int,
+) -> httpx.Response:
+    """只重試傳輸層 HTTP 錯誤；最終失敗交由 Worker 以原因碼 fail-closed。"""
+    retries = max(0, max_retries)
+    for attempt in range(retries + 1):
+        try:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPError:
+            if attempt >= retries:
+                raise
+    raise RuntimeError("unreachable")
+
+
 class OpenAICompatibleLLMProvider(ILLMProvider):
-    """支援 OpenAI-compatible chat-completions 的 HTTP Adapter。"""
+    """支援 chat-completions 類型 HTTP 協定的 Adapter。"""
 
     provider_name = "openai_compatible"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        api_base: str = "",
+        model: str = "",
+        timeout_seconds: int = 60,
+        temperature: float = 0.0,
+        max_retries: int = 0,
+        allow_empty_api_key: bool = False,
+    ) -> None:
+        self.api_key = api_key
+        self.api_base = api_base
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+        self.temperature = temperature
+        self.max_retries = max_retries
+        self.allow_empty_api_key = allow_empty_api_key
 
     async def extract_order(
         self,
@@ -100,34 +136,32 @@ class OpenAICompatibleLLMProvider(ILLMProvider):
         text: Optional[str] = None,
         industry_type: str = "ecom",
     ) -> ExtractionResult:
-        settings = get_settings()
-        if not settings.llm_api_key and not settings.llm_allow_empty_api_key:
+        if not self.api_key and not self.allow_empty_api_key:
             raise RuntimeError("LLM_API_KEY not configured")
-        if not settings.llm_api_base or not settings.llm_model:
+        if not self.api_base or not self.model:
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
-
-        content: List[dict] = [{"type": "text", "text": text or ""}]
+        content: List[dict] = [{"type": "text", "text": redact_pii(text)}]
         if image_url:
             content.append({"type": "image_url", "image_url": {"url": image_url}})
         headers = {"Content-Type": "application/json"}
-        if settings.llm_api_key:
-            headers["Authorization"] = "Bearer {}".format(settings.llm_api_key)
-
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-            response = await client.post(
-                "{}/chat/completions".format(settings.llm_api_base.rstrip("/")),
+        if self.api_key:
+            headers["Authorization"] = "Bearer {}".format(self.api_key)
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await _post_json(
+                client,
+                "{}/chat/completions".format(self.api_base.rstrip("/")),
                 headers=headers,
-                json={
-                    "model": settings.llm_model,
-                    "temperature": 0,
+                payload={
+                    "model": self.model,
+                    "temperature": self.temperature,
                     "response_format": {"type": "json_object"},
                     "messages": [
                         {"role": "system", "content": _ORDER_PROMPTS.get(industry_type, _ORDER_PROMPTS["ecom"])},
                         {"role": "user", "content": content},
                     ],
                 },
+                max_retries=self.max_retries,
             )
-            response.raise_for_status()
         raw_content = response.json()["choices"][0]["message"]["content"]
         try:
             payload = json.loads(raw_content)
@@ -137,9 +171,25 @@ class OpenAICompatibleLLMProvider(ILLMProvider):
 
 
 class OllamaLLMProvider(ILLMProvider):
-    """Ollama `/api/chat` 的 HTTP Adapter；不依賴 Ollama Python SDK。"""
+    """Ollama `/api/chat` 的 HTTP Adapter；不依賴供應商 Python SDK。"""
 
     provider_name = "ollama"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        api_base: str = "",
+        model: str = "",
+        timeout_seconds: int = 60,
+        temperature: float = 0.0,
+        max_retries: int = 0,
+        allow_empty_api_key: bool = False,
+    ) -> None:
+        self.api_base = api_base
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+        self.temperature = temperature
+        self.max_retries = max_retries
 
     async def extract_order(
         self,
@@ -147,26 +197,26 @@ class OllamaLLMProvider(ILLMProvider):
         text: Optional[str] = None,
         industry_type: str = "ecom",
     ) -> ExtractionResult:
-        settings = get_settings()
-        if not settings.llm_api_base or not settings.llm_model:
+        if not self.api_base or not self.model:
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
         if image_url:
             raise RuntimeError("Ollama image URL input is not supported by this adapter")
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-            response = await client.post(
-                "{}/api/chat".format(settings.llm_api_base.rstrip("/")),
-                json={
-                    "model": settings.llm_model,
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await _post_json(
+                client,
+                "{}/api/chat".format(self.api_base.rstrip("/")),
+                payload={
+                    "model": self.model,
                     "format": "json",
                     "stream": False,
-                    "options": {"temperature": 0},
+                    "options": {"temperature": self.temperature},
                     "messages": [
                         {"role": "system", "content": _ORDER_PROMPTS.get(industry_type, _ORDER_PROMPTS["ecom"])},
-                        {"role": "user", "content": text or ""},
+                        {"role": "user", "content": redact_pii(text)},
                     ],
                 },
+                max_retries=self.max_retries,
             )
-            response.raise_for_status()
         raw_content = response.json()["message"]["content"]
         try:
             payload = json.loads(raw_content)
@@ -176,9 +226,27 @@ class OllamaLLMProvider(ILLMProvider):
 
 
 class AnthropicMessagesLLMProvider(ILLMProvider):
-    """Anthropic Messages API 的 HTTP Adapter；不使用任何供應商 SDK。"""
+    """Messages HTTP Adapter；不使用供應商 SDK。"""
 
     provider_name = "anthropic"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        api_base: str = "",
+        model: str = "",
+        timeout_seconds: int = 60,
+        temperature: float = 0.0,
+        max_retries: int = 0,
+        allow_empty_api_key: bool = False,
+    ) -> None:
+        self.api_key = api_key
+        self.api_base = api_base
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+        self.temperature = temperature
+        self.max_retries = max_retries
+        self.allow_empty_api_key = allow_empty_api_key
 
     async def extract_order(
         self,
@@ -186,31 +254,31 @@ class AnthropicMessagesLLMProvider(ILLMProvider):
         text: Optional[str] = None,
         industry_type: str = "ecom",
     ) -> ExtractionResult:
-        settings = get_settings()
-        if not settings.llm_api_key:
+        if not self.api_key and not self.allow_empty_api_key:
             raise RuntimeError("LLM_API_KEY not configured")
-        if not settings.llm_api_base or not settings.llm_model:
+        if not self.api_base or not self.model:
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
-        content: List[dict] = [{"type": "text", "text": text or ""}]
+        content: List[dict] = [{"type": "text", "text": redact_pii(text)}]
         if image_url:
             content.append({"type": "image", "source": {"type": "url", "url": image_url}})
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-            response = await client.post(
-                "{}/messages".format(settings.llm_api_base.rstrip("/")),
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await _post_json(
+                client,
+                "{}/messages".format(self.api_base.rstrip("/")),
                 headers={
-                    "x-api-key": settings.llm_api_key,
+                    "x-api-key": self.api_key,
                     "anthropic-version": "2023-06-01",
                     "content-type": "application/json",
                 },
-                json={
-                    "model": settings.llm_model,
+                payload={
+                    "model": self.model,
                     "max_tokens": 1024,
-                    "temperature": 0,
+                    "temperature": self.temperature,
                     "system": _ORDER_PROMPTS.get(industry_type, _ORDER_PROMPTS["ecom"]),
                     "messages": [{"role": "user", "content": content}],
                 },
+                max_retries=self.max_retries,
             )
-            response.raise_for_status()
         raw_content = response.json()["content"][0]["text"]
         try:
             payload = json.loads(raw_content)

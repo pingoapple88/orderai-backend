@@ -62,6 +62,7 @@ class Store(Base):
     company_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"))
     referred_by_dealer_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("dealers.id"))
     plan: Mapped[str] = mapped_column(Text, default="lite")
+    store_key: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
     line_channel_id: Mapped[Optional[str]] = mapped_column(Text)  # ※ secret 只在 Railway ENV，DB 不碰
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
@@ -246,6 +247,25 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
+class ModuleRegistration(Base):
+    __tablename__ = "module_registrations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    module_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    module_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    locale: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("module_key", "idempotency_key", name="uq_module_registration_idempotency"),
+    )
+
+
 class Product(Base):
     """店家自有商品型錄（WO-006）。抄單別名比對 + 自動帶價的價格來源。
 
@@ -270,6 +290,37 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (UniqueConstraint("store_id", "name", name="uq_products_store_name"),)
+
+
+class InventoryInquiry(Base):
+    """人工庫存確認工作項。
+
+    此表只記錄客戶的詢問與人員回覆，不是庫存帳、不是保留，也不會造成扣庫。
+    所有存取由 store_id 與 Store.company_id 雙鍵限制；商品與客戶關聯皆為可選快照。
+    """
+    __tablename__ = "inventory_inquiries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("stores.id"), nullable=False, index=True
+    )
+    product_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="SET NULL"), index=True
+    )
+    customer_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="SET NULL"), index=True
+    )
+    requester_name: Mapped[Optional[str]] = mapped_column(Text)
+    requested_product_name: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_quantity: Mapped[Optional[int]] = mapped_column(Integer)
+    requested_unit: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending_review")
+    decision_note: Mapped[Optional[str]] = mapped_column(Text)
+    reviewed_by_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class OrderBatch(Base):
@@ -312,5 +363,5 @@ class SystemSetting(Base):
 __all__ = [
     "Company", "Dealer", "Store", "Plan", "Customer", "User", "UserPreference",
     "Order", "OrderItem", "BillingRecord", "AIExtraction", "AIUsageLog",
-    "AuditLog", "Product", "OrderBatch", "OrderCommit", "SystemSetting",
+    "AuditLog", "Product", "InventoryInquiry", "OrderBatch", "OrderCommit", "SystemSetting",
 ]

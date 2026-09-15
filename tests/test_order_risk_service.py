@@ -66,6 +66,19 @@ def test_low_confidence_requires_human_review(db_session):
     assert "confidence_below_threshold" in decision.reasons
 
 
+def test_threshold_boundary_086_is_approved(db_session):
+    store, _ = _seed(db_session)
+    result = _result(confidence=0.86)
+    priced = product_service.price_extracted_items(db_session, store.id, result.items)
+
+    decision = order_risk_service.evaluate_order_extraction(
+        db_session, result, priced, default_threshold=0.85
+    )
+
+    assert decision.status == "approved"
+    assert decision.reasons == []
+
+
 def test_audit_log_contains_hash_not_original_line_content(db_session):
     store, owner = _seed(db_session)
     result = _result()
@@ -76,10 +89,12 @@ def test_audit_log_contains_hash_not_original_line_content(db_session):
         principal={"user_id": owner.id, "store_id": store.id},
         extraction=result,
         decision=decision,
-        source_text="王阿姨 高麗菜2顆 電話0912345678",
+        source_text="我是王阿姨 高麗菜2顆 電話0912345678 email@example.com",
     )
 
     log = db_session.query(AuditLog).filter(AuditLog.action == "ai.order.decision").one()
     assert log.new_value["status"] == "approved"
     assert log.new_value["source_sha256"]
     assert "0912345678" not in str(log.new_value)
+    assert "email@example.com" not in str(log.new_value)
+    assert "王阿姨" not in str(log.new_value)

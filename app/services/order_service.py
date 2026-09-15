@@ -6,11 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.events import event_bus
-from app.models import AuditLog, Order, OrderItem
+from app.models import AuditLog, Order, OrderItem, Store
 
-# API 契約 v1.0：status 列舉僅此五個
+# API 契約 v1.0：status 列舉。WO-04 ENG-01 增列 "rejected"（人工退回草稿）。
+# 註：僅 Python 層驗證集合；orders.status 為自由 String(50)，無 DB enum → 零 migration。
 ORDER_STATUSES = {
-    "pending_confirm", "confirmed", "cancelled", "completed", "needs_review",
+    "pending_confirm", "confirmed", "cancelled", "completed", "needs_review", "rejected",
 }
 
 
@@ -145,4 +146,50 @@ def confirm_order(db: Session, principal: dict, store_id: int, order_id: int) ->
     db.commit()
     db.refresh(order)
     event_bus.publish("order.confirmed", {"order_id": order.id, "store_id": order.store_id})
+    return order
+
+
+def _resolve_company_id(db: Session, store_id: int) -> int:
+    """律三：由已驗證的 store_id 推導 Store.company_id。
+    store 不存在或 company_id 為 null → fail-closed（raise PermissionError）。
+    不接受前端提供的 company_id、不猜測、不補預設值（鏡射 module_service 慣例）。"""
+    store = db.get(Store, store_id)
+    if store is None or store.company_id is None:
+        raise PermissionError("tenant company_id unresolved; fail-closed")
+    return store.company_id
+
+
+def reject_order(db: Session, principal: dict, store_id: int, order_id: int,
+                 reason: Optional[str] = None) -> Optional[Order]:
+    """退回 AI 抄單草稿（WO-04 ENG-01「退回補件」）：status → rejected。
+
+    律三：由 store_id 推導 company_id（null → fail-closed）；訂單讀取以 store_id + company_id
+    雙鍵範圍過濾；跨租戶不可讀取/退回/寫 audit。
+    狀態邊界：僅 pending_confirm 可退回，其餘 raise ValueError（呼叫端轉 409），原狀態不變。
+    原因寫入 notes（律四 audit 帶 store_id + company_id）；不刪單、不扣庫、不轉 ERP。"""
+    company_id = _resolve_company_id(db, store_id)   # 律三 fail-closed
+    order = db.execute(
+        select(Order).join(Store, Store.id == Order.store_id).where(
+            Order.id == order_id,
+            Order.store_id == store_id,
+            Store.company_id == company_id,          # 雙鍵範圍
+        )
+    ).scalar_one_or_none()
+    if not order:
+        return None
+    if order.status != "pending_confirm":
+        raise ValueError(
+            f"cannot reject order in status '{order.status}'; "
+            "only 'pending_confirm' drafts are rejectable"
+        )
+    old = {"status": order.status}
+    order.status = "rejected"
+    if reason:
+        prefix = (order.notes + "\n") if order.notes else ""
+        order.notes = f"{prefix}[退回] {reason}"
+    _audit(db, principal, "order.reject", order.id, old=old,
+           new={"status": "rejected", "reason": reason, "company_id": company_id})
+    db.commit()
+    db.refresh(order)
+    event_bus.publish("order.rejected", {"order_id": order.id, "store_id": order.store_id})
     return order

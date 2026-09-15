@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.interfaces.llm_provider import ExtractionResult
 from app.models import AuditLog
+from app.services.pii_redaction import redact_pii
 from app.services.settings_service import get_float_setting, get_int_setting
 
 
@@ -76,6 +77,7 @@ def audit_ai_decision(
     source_text: str,
 ) -> None:
     """僅記錄雜湊與控制資訊，不把 LINE 原文、電話或 API Key 寫進 audit_logs。"""
+    redacted_source = redact_pii(source_text)
     db.add(
         AuditLog(
             user_id=principal.get("user_id"),
@@ -90,7 +92,7 @@ def audit_ai_decision(
                 "confidence_score": extraction.confidence_score if extraction else None,
                 "provider": extraction.provider_name if extraction else None,
                 "item_count": len(extraction.items) if extraction else 0,
-                "source_sha256": sha256(source_text.encode("utf-8")).hexdigest(),
+                "source_sha256": sha256(redacted_source.encode("utf-8")).hexdigest(),
             },
         )
     )

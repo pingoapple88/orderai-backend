@@ -8,9 +8,10 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+import httpx
 from sqlalchemy import func, select
 
-from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult
+from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, LLMProviderExecutionError
 from app.models import Customer, Order, OrderItem, Plan, Product, Store, User
 from app.workers import line_worker
 
@@ -102,7 +103,32 @@ def test_llm_failure_notifies_and_no_order(db_session, monkeypatch):
     _install(monkeypatch, _FakeLLM(exc=RuntimeError("boom")), notif, store.id)
     _run(_text_payload(), db_session)
     assert _order_count(db_session) == 0
-    assert notif.sent and "稍後再試" in notif.sent[0]["text"]
+    assert notif.sent and "provider_error" in notif.sent[0]["text"]
+
+
+def test_llm_timeout_notifies_reason_and_no_order(db_session, monkeypatch):
+    store, _ = _seed(db_session)
+    notif = _FakeNotif()
+    _install(monkeypatch, _FakeLLM(exc=httpx.TimeoutException("timeout")), notif, store.id)
+    _run(_text_payload(event_id="timeout-1"), db_session)
+
+    assert _order_count(db_session) == 0
+    assert notif.sent and "provider_timeout" in notif.sent[0]["text"]
+
+
+def test_structured_provider_error_notifies_reason_and_no_order(db_session, monkeypatch):
+    store, _ = _seed(db_session)
+    notif = _FakeNotif()
+    _install(
+        monkeypatch,
+        _FakeLLM(exc=LLMProviderExecutionError("provider_error", "controlled failure")),
+        notif,
+        store.id,
+    )
+    _run(_text_payload(event_id="provider-error-1"), db_session)
+
+    assert _order_count(db_session) == 0
+    assert notif.sent and "provider_error" in notif.sent[0]["text"]
 
 
 # ── 場景 3：信心 < 閾值 → fail-closed，不建單 ───────────────────────────────

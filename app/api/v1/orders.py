@@ -90,6 +90,24 @@ def confirm_order(store_id: int, order_id: int,
     return success_response(_detail_dict(order))
 
 
+@router.post("/{order_id}/reject")
+def reject_order(store_id: int, order_id: int, body: Optional[dict] = None,
+                 principal: dict = Depends(verify_store_access),
+                 db: Session = Depends(get_db)):
+    """退回草稿（WO-04 ENG-01）：status → rejected，可帶 {"reason": "..."}。
+    僅 pending_confirm 可退回；非草稿回 409 且不改狀態。"""
+    reason = (body or {}).get("reason")
+    try:
+        order = order_service.reject_order(db, principal, store_id, order_id, reason)
+    except PermissionError as e:
+        raise HTTPException(403, str(e))          # 律三：company_id 無法解析 → fail-closed
+    except ValueError as e:
+        raise HTTPException(409, str(e))          # 狀態邊界：非草稿不可退回
+    if not order:
+        raise HTTPException(404, "Order not found")
+    return success_response(_detail_dict(order))
+
+
 @router.put("/{order_id}")
 def update_order(store_id: int, order_id: int, body: dict,
                  principal: dict = Depends(verify_store_access),

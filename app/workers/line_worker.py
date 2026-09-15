@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+import httpx
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
@@ -100,20 +101,25 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         result = await llm.extract_order(text=text, industry_type=industry_type)
     except Exception as exc:  # noqa: BLE001 — 對外服務失敗一律降級通知
         logger.error("LLM extract_order failed: %s", exc)
+        reason_code = getattr(exc, "reason_code", None)
+        if reason_code is None:
+            reason_code = "provider_timeout" if isinstance(
+                exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)
+            ) else "provider_error"
         order_risk_service.audit_ai_decision(
             db,
             principal=principal,
             extraction=None,
             decision=order_risk_service.RiskDecision(
                 status="needs_review",
-                reasons=["provider_error"],
+                reasons=[reason_code],
                 threshold=settings.ai_confidence_threshold,
             ),
             source_text=text,
         )
         if reply_token and user_id:
             await notif.send_message(
-                to=user_id, text="系統忙碌中，請稍後再試。", reply_token=reply_token
+                to=user_id, text="此筆內容需人工確認（原因：{}）。".format(reason_code), reply_token=reply_token
             )
         return
 
