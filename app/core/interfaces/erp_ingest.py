@@ -80,6 +80,7 @@ class PendingConfirmationOrderRequest:
     requested_for: str
     special_request: Optional[str]
     items: List[PendingConfirmationOrderItem]
+    pending_customer_id: Optional[int] = None
 
 
 class IErpIngestProvider(ABC):

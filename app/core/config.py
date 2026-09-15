@@ -1,4 +1,5 @@
 """集中設定（律二：外部化設定）。所有 Key/閾值一律從環境變數讀取。"""
+import json
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -80,6 +81,15 @@ class Settings(BaseSettings):
     p1_attachment_max_bytes: int = 10_000_000
     p1_internal_relay_line_user_ids: str = ""
     p1_erp_sales_location_id: int = 0
+    # JSON object: {"<OrderAI local product id>": <ERP product id>}。
+    # 未設定或無效 mapping 時 P1 必須維持人工覆核，絕不可猜測 ERP 商品。
+    p1_erp_product_id_map_json: str = "{}"
+    # 預設 blocked；僅在具備受控測試或部署設定時可選 http。此設定本身不會啟用 outbox 傳送。
+    p1_erp_ingest_provider: str = "blocked"
+    p1_erp_base_url: str = ""
+    p1_erp_service_id: str = "orderai_p1"
+    p1_erp_ingress_hmac_secret: str = ""
+    p1_erp_timeout_seconds: int = 10
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
@@ -96,6 +106,26 @@ class Settings(BaseSettings):
     @property
     def p1_internal_relay_user_ids(self) -> set[str]:
         return {value.strip() for value in self.p1_internal_relay_line_user_ids.split(",") if value.strip()}
+
+    @property
+    def p1_erp_product_id_map(self) -> dict[int, int]:
+        try:
+            raw = json.loads(self.p1_erp_product_id_map_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 必須是 JSON object") from exc
+        if not isinstance(raw, dict):
+            raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 必須是 JSON object")
+        result: dict[int, int] = {}
+        for local_product_id, erp_product_id in raw.items():
+            try:
+                local_id = int(local_product_id)
+                erp_id = int(erp_product_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 的商品 ID 必須為正整數") from exc
+            if local_id <= 0 or erp_id <= 0:
+                raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 的商品 ID 必須為正整數")
+            result[local_id] = erp_id
+        return result
 
 
 @lru_cache

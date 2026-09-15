@@ -71,7 +71,7 @@ def _seed(db):
     return company, store
 
 
-def _configure_p1(monkeypatch, store_id):
+def _configure_p1(monkeypatch, store_id, *, erp_product_map_json="{}"):
     monkeypatch.setattr(line_worker.settings, "p1_intake_enabled", True)
     monkeypatch.setattr(webhook.settings, "p1_intake_enabled", True)
     monkeypatch.setattr(line_worker.settings, "default_store_id", store_id)
@@ -82,6 +82,8 @@ def _configure_p1(monkeypatch, store_id):
     monkeypatch.setattr(webhook.settings, "p1_identity_hmac_key", "p1-test-hmac")
     monkeypatch.setattr(line_worker.settings, "p1_erp_sales_location_id", 91)
     monkeypatch.setattr(webhook.settings, "p1_erp_sales_location_id", 91)
+    monkeypatch.setattr(line_worker.settings, "p1_erp_product_id_map_json", erp_product_map_json)
+    monkeypatch.setattr(webhook.settings, "p1_erp_product_id_map_json", erp_product_map_json)
     monkeypatch.setattr(line_worker.settings, "p1_attachment_followup_enabled", False)
     monkeypatch.setattr(webhook.settings, "p1_attachment_followup_enabled", False)
     monkeypatch.setattr(line_worker.settings, "p1_internal_relay_line_user_ids", "")
@@ -102,7 +104,7 @@ def _payload(*events):
     return {"destination": "Uofficial", "events": list(events)}
 
 
-def _result(confidence=0.93, requested_for="2026-09-20", special_request=None):
+def _result(confidence=0.93, requested_for="2026-09-20T02:00:00+00:00", special_request=None):
     raw = {"requested_for": requested_for, "special_request": special_request}
     return ExtractionResult(
         items=[ExtractedItem(product_name="友善雞蛋", quantity=2, unit="盒", evidence="友善雞蛋 2 盒", confidence_score=confidence)],
@@ -186,7 +188,8 @@ def test_missing_p1_encryption_key_rejects_before_ledger_write(db_session, monke
 
 def test_approved_text_creates_encrypted_p1_draft_and_blocked_outbox_not_local_order(db_session, monkeypatch):
     _, store = _seed(db_session)
-    _configure_p1(monkeypatch, store.id)
+    product_id = db_session.execute(select(Product.id)).scalar_one()
+    _configure_p1(monkeypatch, store.id, erp_product_map_json=json.dumps({str(product_id): 101}))
     payload = _payload(_event())
     _record(db_session, store, payload)
     _install_worker(monkeypatch, _FakeLLM(_result()), store.id)
@@ -199,8 +202,9 @@ def test_approved_text_creates_encrypted_p1_draft_and_blocked_outbox_not_local_o
     assert outbox.status == "blocked" and outbox.last_error_code == "ERP_CONNECTION_BLOCKED"
     customer_request, order_request = p1_intake_service.build_erp_requests_from_outbox(outbox)
     assert customer_request.line_user_id == "Up1buyer"
-    assert order_request.requested_for == "2026-09-20"
+    assert order_request.requested_for == "2026-09-20T02:00:00+00:00"
     assert order_request.special_request is None and order_request.items[0].quantity == 2
+    assert order_request.items[0].product_id == 101
     audit_serialized = json.dumps([row.new_value for row in db_session.execute(select(AuditLog)).scalars()], ensure_ascii=False)
     assert "友善雞蛋 2 盒" not in audit_serialized and "0900000000" not in audit_serialized
 
@@ -241,12 +245,13 @@ def test_unknown_catalog_item_stays_human_review_without_erp_delivery(db_session
     unknown = ExtractionResult(
         items=[ExtractedItem(product_name="不存在的品項", quantity=1, unit="個", evidence="不存在的品項 1", confidence_score=0.99)],
         customer_name="合成客戶", confidence_score=0.99, industry_type="ecom", provider_name="test-llm",
-        raw={"requested_for": "2026-09-20", "special_request": None},
+        raw={"requested_for": "2026-09-20T02:00:00+00:00", "special_request": None},
     )
     _install_worker(monkeypatch, _FakeLLM(unknown), store.id)
     _run(payload, db_session)
     case = db_session.execute(select(IntakeConversation)).scalar_one()
     assert case.state == "needs_human_review"
+    assert "catalog_item_unmatched" in (case.reason_codes or {}).get("codes", [])
     assert db_session.execute(select(func.count(ErpDeliveryOutbox.id))).scalar_one() == 0
     assert db_session.execute(select(func.count(Order.id))).scalar_one() == 0
 
@@ -296,7 +301,8 @@ def test_parallel_duplicate_ledger_insert_creates_one_event(db_session, monkeypa
 
 def test_same_event_is_processed_once_without_duplicate_case_or_outbox(db_session, monkeypatch):
     _, store = _seed(db_session)
-    _configure_p1(monkeypatch, store.id)
+    product_id = db_session.execute(select(Product.id)).scalar_one()
+    _configure_p1(monkeypatch, store.id, erp_product_map_json=json.dumps({str(product_id): 101}))
     payload = _payload(_event(event_id="dup-p1"))
     _record(db_session, store, payload)
     _install_worker(monkeypatch, _FakeLLM(_result()), store.id)

@@ -6,6 +6,7 @@ from app.core.interfaces.notification_provider import INotificationProvider
 from app.core.interfaces.payment_provider import IPaymentProvider
 from app.core.interfaces.erp_ingest import IErpIngestProvider
 from app.providers.erp_blocked import BlockedErpIngestProvider
+from app.providers.erp_http import CloudDingErpIngestProvider
 from app.providers.failover_llm import FailoverLLMProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
@@ -71,6 +72,23 @@ def get_erp_ingest_provider() -> IErpIngestProvider:
     """雲鼎 ERP 待確認訂單入站 Adapter（WO-04 ENG-03）。
     未取得 owner/sandbox/書面契約前一律回 fail-closed 佔位，不連線、不送資料（§4）。
     真實實作就緒後於此依設定切換（律一：可替換）。"""
+    provider = settings.p1_erp_ingest_provider.strip().lower()
+    if provider in {"", "blocked"}:
+        return BlockedErpIngestProvider()
+    if provider == "http":
+        if (
+            not settings.p1_erp_base_url.strip()
+            or not settings.p1_erp_service_id.strip()
+            or not settings.p1_erp_ingress_hmac_secret.strip()
+            or settings.p1_erp_timeout_seconds <= 0
+        ):
+            return BlockedErpIngestProvider()
+        return CloudDingErpIngestProvider(
+            base_url=settings.p1_erp_base_url,
+            service_id=settings.p1_erp_service_id,
+            ingress_hmac_secret=settings.p1_erp_ingress_hmac_secret,
+            timeout_seconds=settings.p1_erp_timeout_seconds,
+        )
     return BlockedErpIngestProvider()
 
 

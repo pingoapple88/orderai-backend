@@ -33,6 +33,7 @@ from app.models import (
     LineWebhookEvent,
     Store,
 )
+from app.services.product_service import match_product
 
 settings = get_settings()
 
@@ -282,6 +283,8 @@ def _required_field_reasons(
     reasons: list[str] = []
     if is_internal_relay or not source_user_id:
         reasons.append("buyer_identity_unresolved")
+    if not getattr(result, "customer_name", None):
+        reasons.append("missing_buyer_name")
     if not getattr(result, "items", None):
         reasons.append("missing_requested_item")
     if not requested_for:
@@ -289,6 +292,53 @@ def _required_field_reasons(
     if "special_request" not in raw and "specialRequest" not in raw:
         reasons.append("missing_special_request")
     return reasons
+
+
+def _normalize_requested_for(value: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """ERP 只接收具時區的時間；日期或無時區文字不得自行猜測。"""
+    if not value:
+        return None, None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None, "requested_for_invalid"
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None, "requested_for_timezone_missing"
+    return parsed.astimezone(timezone.utc).isoformat(), None
+
+
+def _resolve_erp_items(
+    db: Session,
+    *,
+    store: Store,
+    result: Any,
+) -> tuple[list[PendingConfirmationOrderItem], list[str]]:
+    """只允許同店型錄精確命中、且有外部化 ERP ID 映射的品項進入 ERP 草稿。"""
+    try:
+        product_id_map = settings.p1_erp_product_id_map
+    except ValueError:
+        return [], ["erp_product_mapping_invalid"]
+
+    items: list[PendingConfirmationOrderItem] = []
+    reasons: list[str] = []
+    for extracted in getattr(result, "items", None) or []:
+        local_product = match_product(db, store.id, extracted.product_name)
+        if local_product is None:
+            reasons.append("catalog_item_unmatched")
+            continue
+        erp_product_id = product_id_map.get(local_product.id)
+        if erp_product_id is None:
+            reasons.append("erp_product_mapping_missing")
+            continue
+        items.append(
+            PendingConfirmationOrderItem(
+                product_name=local_product.name,
+                quantity=extracted.quantity,
+                unit=extracted.unit or local_product.unit or "個",
+                product_id=erp_product_id,
+            )
+        )
+    return items, reasons
 
 
 def create_text_case(
@@ -304,15 +354,17 @@ def create_text_case(
 ) -> IntakeConversation:
     raw = getattr(result, "raw", None) or {}
     is_internal_relay = bool(source_user_id and source_user_id in settings.p1_internal_relay_user_ids)
-    requested_for = raw.get("requested_for") or raw.get("requestedFor")
+    requested_for_raw = raw.get("requested_for") or raw.get("requestedFor")
+    requested_for, schedule_reason = _normalize_requested_for(requested_for_raw)
     special_request = raw.get("special_request") if "special_request" in raw else raw.get("specialRequest")
+    erp_items, product_reasons = _resolve_erp_items(db, store=store, result=result)
     reasons = list(decision_reasons) + _required_field_reasons(
         source_user_id=source_user_id,
         is_internal_relay=is_internal_relay,
         result=result,
-        requested_for=requested_for,
+        requested_for=requested_for_raw,
         raw=raw,
-    )
+    ) + product_reasons + ([schedule_reason] if schedule_reason else [])
     deliverable = decision_status == "approved" and not reasons and settings.p1_erp_sales_location_id > 0
     if decision_status == "approved" and settings.p1_erp_sales_location_id <= 0:
         reasons.append("erp_sales_location_unmapped")
@@ -322,7 +374,7 @@ def create_text_case(
         source_user_id=source_user_id,
         is_internal_relay=is_internal_relay,
         result=result,
-        requested_for=requested_for,
+        requested_for=requested_for_raw,
         special_request=special_request,
     )
     case = _new_case(
@@ -367,15 +419,7 @@ def create_text_case(
             buyer_name=getattr(result, "customer_name", None),
             requested_for=requested_for,
             special_request=special_request,
-            items=[
-                PendingConfirmationOrderItem(
-                    product_name=item.product_name,
-                    quantity=item.quantity,
-                    unit=item.unit or "個",
-                    product_id=None,
-                )
-                for item in (getattr(result, "items", None) or [])
-            ],
+            items=erp_items,
         )
         db.add(
             ErpDeliveryOutbox(
