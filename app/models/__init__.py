@@ -292,6 +292,37 @@ class Product(Base):
     __table_args__ = (UniqueConstraint("store_id", "name", name="uq_products_store_name"),)
 
 
+class InventoryInquiry(Base):
+    """人工庫存確認工作項。
+
+    此表只記錄客戶的詢問與人員回覆，不是庫存帳、不是保留，也不會造成扣庫。
+    所有存取由 store_id 與 Store.company_id 雙鍵限制；商品與客戶關聯皆為可選快照。
+    """
+    __tablename__ = "inventory_inquiries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("stores.id"), nullable=False, index=True
+    )
+    product_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="SET NULL"), index=True
+    )
+    customer_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="SET NULL"), index=True
+    )
+    requester_name: Mapped[Optional[str]] = mapped_column(Text)
+    requested_product_name: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_quantity: Mapped[Optional[int]] = mapped_column(Integer)
+    requested_unit: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending_review")
+    decision_note: Mapped[Optional[str]] = mapped_column(Text)
+    reviewed_by_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class OrderBatch(Base):
     """開團批次（WO-009）。貼上抄單以批次為單位；統計聚合掛在批次上。"""
     __tablename__ = "order_batches"
@@ -332,5 +363,5 @@ class SystemSetting(Base):
 __all__ = [
     "Company", "Dealer", "Store", "Plan", "Customer", "User", "UserPreference",
     "Order", "OrderItem", "BillingRecord", "AIExtraction", "AIUsageLog",
-    "AuditLog", "Product", "OrderBatch", "OrderCommit", "SystemSetting",
+    "AuditLog", "Product", "InventoryInquiry", "OrderBatch", "OrderCommit", "SystemSetting",
 ]

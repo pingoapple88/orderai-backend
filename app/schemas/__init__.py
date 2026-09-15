@@ -108,6 +108,38 @@ class ProductUpdate(CamelModel):
     is_active: Optional[bool] = None
 
 
+# ── 人工庫存確認（M1-INV-01）──────────────────────────────────────────────────
+class InventoryInquiryCreate(CamelModel):
+    requester_name: Optional[str] = Field(default=None, max_length=120)
+    customer_id: Optional[int] = Field(default=None, ge=1)
+    product_id: Optional[int] = Field(default=None, ge=1)
+    requested_product_name: str = Field(min_length=1, max_length=255)
+    requested_quantity: Optional[int] = Field(default=None, ge=1)
+    requested_unit: Optional[str] = Field(default=None, max_length=30)
+
+
+class InventoryInquiryReview(CamelModel):
+    decision: Literal["available", "unavailable"]
+    note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class InventoryInquiryOut(CamelModel):
+    id: int
+    store_id: int
+    product_id: Optional[int] = None
+    customer_id: Optional[int] = None
+    requester_name: Optional[str] = None
+    requested_product_name: str
+    requested_quantity: Optional[int] = None
+    requested_unit: Optional[str] = None
+    status: str
+    decision_note: Optional[str] = None
+    reviewed_by_user_id: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 # ── 開團批次 / 貼上抄單（WO-009）─────────────────────────────────────────────
 class BatchCreate(CamelModel):
     title: str
