@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     queue_backend: str = "redis"          # redis | memory（測試/開發）
     queue_name: str = "line_webhook"
 
+    # 青泉谷 P1：預設關閉。啟用時所有個資草稿須以獨立部署注入的 key 加密／雜湊。
+    p1_intake_enabled: bool = False
+    p1_pii_encryption_key: str = ""
+    p1_identity_hmac_key: str = ""
+    p1_attachment_followup_enabled: bool = False
+    p1_attachment_max_bytes: int = 10_000_000
+    p1_internal_relay_line_user_ids: str = ""
+    p1_erp_sales_location_id: int = 0
+
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
     stallpay_api_key: str = ""
@@ -83,6 +92,10 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> list:
         """把逗號分隔的 allowed_origins 拆成 list（去空白、濾空項）。"""
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def p1_internal_relay_user_ids(self) -> set[str]:
+        return {value.strip() for value in self.p1_internal_relay_line_user_ids.split(",") if value.strip()}
 
 
 @lru_cache

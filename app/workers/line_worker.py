@@ -22,7 +22,7 @@ import httpx
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import Customer, Store, User
-from app.services import order_risk_service, order_service, product_service
+from app.services import order_risk_service, order_service, p1_intake_service, product_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -80,6 +80,10 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
     source = event.get("source", {})
     user_id: Optional[str] = source.get("userId")
     line_event_id: Optional[str] = event.get("webhookEventId")
+
+    if settings.p1_intake_enabled:
+        await _process_p1_event(db, event, llm, notif)
+        return
 
     # pre-filter：只處理文字訊息
     text = _get_text_from_event(event)
@@ -201,6 +205,120 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         )
         reply_text = "已收到您的訂單：\n{}\n\n請稍候確認。".format(item_lines)
         await notif.send_message(to=user_id, text=reply_text, reply_token=reply_token)
+
+
+async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_id: Optional[str]) -> None:
+    """未配置官方 Messaging channel 時不假裝可對客補問。"""
+    if not (
+        settings.p1_attachment_followup_enabled
+        and settings.line_messaging_access_token
+        and reply_token
+        and user_id
+    ):
+        return
+    try:
+        await notif.send_message(
+            to=user_id,
+            reply_token=reply_token,
+            text="已收到附件。為避免辨識錯誤，請直接以文字提供訂購人、商品、數量、需要時間與特別要求。",
+        )
+    except Exception:  # noqa: BLE001 - 通知不可用時保留人工覆核案例，不重試外部呼叫。
+        logger.warning("P1 attachment follow-up unavailable; retained for human review")
+
+
+async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
+    """P1：只建立受控草稿／blocked outbox，絕不建立本地一般 Order 或 Customer。"""
+    line_event_id = event.get("webhookEventId")
+    if not isinstance(line_event_id, str) or not line_event_id:
+        return
+    try:
+        store = p1_intake_service.resolve_p1_store(db)
+    except p1_intake_service.P1IntakeConfigurationError as exc:
+        logger.error("P1 intake store scope unavailable: %s", exc)
+        return
+    source_event = p1_intake_service.claim_event(db, store_id=store.id, webhook_event_id=line_event_id)
+    if source_event is None:
+        return
+
+    message = event.get("message") or {}
+    message_type = message.get("type")
+    source = event.get("source") or {}
+    source_user_id = source.get("userId")
+    reply_token = event.get("replyToken")
+    try:
+        if message_type in {"image", "audio", "file"}:
+            p1_intake_service.create_attachment_case(
+                db, store=store, source_event=source_event, media_type=message_type
+            )
+            await _safe_attachment_followup(notif, reply_token=reply_token, user_id=source_user_id)
+            p1_intake_service.finish_event(db, source_event)
+            return
+
+        text = _get_text_from_event(event)
+        if not text:
+            # 非訂單文字、貼圖、位置等事件也不會變成訂單。
+            p1_intake_service.create_text_case(
+                db,
+                store=store,
+                source_event=source_event,
+                source_text="",
+                source_user_id=source_user_id,
+                result=type("EmptyExtraction", (), {"items": [], "customer_name": None, "customer_phone": None, "confidence_score": 0.0, "provider_name": "", "raw": {}})(),
+                decision_status="needs_review",
+                decision_reasons=["unsupported_message_type"],
+            )
+            p1_intake_service.finish_event(db, source_event)
+            return
+
+        try:
+            result = await llm.extract_order(text=text, industry_type=store.industry_type or "ecom")
+        except Exception as exc:  # noqa: BLE001 - 外部解析失敗只建立人工覆核草稿。
+            reason = getattr(exc, "reason_code", None) or (
+                "provider_timeout" if isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)) else "provider_error"
+            )
+            p1_intake_service.create_text_case(
+                db,
+                store=store,
+                source_event=source_event,
+                source_text=text,
+                source_user_id=source_user_id,
+                result=type("EmptyExtraction", (), {"items": [], "customer_name": None, "customer_phone": None, "confidence_score": 0.0, "provider_name": "", "raw": {}})(),
+                decision_status="needs_review",
+                decision_reasons=[reason],
+            )
+            p1_intake_service.finish_event(db, source_event)
+            return
+
+        priced = product_service.price_extracted_items(db, store.id, result.items)
+        decision = order_risk_service.evaluate_order_extraction(
+            db,
+            extraction=result,
+            priced_items=priced,
+            default_threshold=settings.ai_confidence_threshold,
+        )
+        p1_intake_service.create_text_case(
+            db,
+            store=store,
+            source_event=source_event,
+            source_text=text,
+            source_user_id=source_user_id,
+            result=result,
+            decision_status=decision.status,
+            decision_reasons=decision.reasons,
+        )
+        p1_intake_service.finish_event(db, source_event)
+    except p1_intake_service.P1IntakeConfigurationError as exc:
+        db.rollback()
+        source_event = db.get(type(source_event), source_event.id)
+        if source_event is not None:
+            p1_intake_service.finish_event(db, source_event, error_code=str(exc))
+        logger.error("P1 intake failed closed: %s", exc)
+    except Exception:
+        db.rollback()
+        source_event = db.get(type(source_event), source_event.id)
+        if source_event is not None:
+            p1_intake_service.finish_event(db, source_event, error_code="P1_INTAKE_PROCESSING_FAILED")
+        logger.exception("P1 intake processing failed")
 
 
 async def process_webhook_event(payload: Dict[str, Any], db: Optional[Session] = None) -> None:

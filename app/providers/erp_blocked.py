@@ -9,6 +9,8 @@ from app.core.interfaces.erp_ingest import (
     ErpIngestRequest,
     ErpIngestResult,
     IErpIngestProvider,
+    PendingConfirmationOrderRequest,
+    PendingCustomerRequest,
 )
 
 
@@ -19,4 +21,18 @@ class BlockedErpIngestProvider(IErpIngestProvider):
         raise ErpIngestBlockedError(
             "ERP_CONNECTION_BLOCKED",
             "雲鼎 ERP owner/sandbox/書面契約未就緒；依 WO-04 §4 不送資料。",
+        )
+
+    async def create_pending_customer(self, request: PendingCustomerRequest) -> ErpIngestResult:
+        raise ErpIngestBlockedError(
+            "ERP_CONNECTION_BLOCKED",
+            "雲鼎 ERP owner/sandbox/書面契約未就緒；依 P1 規則不送待確認客戶資料。",
+        )
+
+    async def submit_pending_confirmation_order(
+        self, request: PendingConfirmationOrderRequest
+    ) -> ErpIngestResult:
+        raise ErpIngestBlockedError(
+            "ERP_CONNECTION_BLOCKED",
+            "雲鼎 ERP owner/sandbox/書面契約未就緒；依 P1 規則不送待確認訂單資料。",
         )
