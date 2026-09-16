@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     p1_uat_delivery_enabled: bool = False
     p1_uat_environment_marker: str = ""
     p1_erp_uat_allowed_hosts: str = ""
+    # 僅限一次性、人工觸發的隔離 UAT 合成基準；預設關閉且須綁定精準 Railway internal DB host。
+    # 此設定不得作為 LINE、正式資料或 production 環境的種子捷徑。
+    p1_uat_seed_enabled: bool = False
+    p1_uat_database_host: str = ""
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
