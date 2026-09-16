@@ -27,7 +27,7 @@ python scripts/p1_uat_seed.py --clear
 
 `--seed` 可重跑，僅建立合成 company、直接通路 `plans`、store、owner 和一項合成商品。`--verify` 唯讀檢查正式 Customer、Order、BillingRecord、LINE webhook event 為零。`--clear` 僅會刪除精準識別的合成資料；若偵測到上述任一正式副作用，會 fail-closed 拒絕清理，以保留人工調查證據。
 
-隔離 Railway 部署由 `railway.json` 在服務啟動前執行 `alembic upgrade head`。該設定不會呼叫種子，種子仍必須由隔離 service 的人工受控 shell 明確執行。
+容器啟動命令會先執行標準 `alembic upgrade head`，再啟動 API，確保空白資料庫具備既有 schema。這只套用 migration，**不會呼叫**種子程式；種子仍必須由隔離 service 的人工受控 shell 明確執行。`railway.json` 亦保留同一 pre-deploy 宣告，供支援該欄位的部署平台採用。
 
 ## P1 邊界
 
