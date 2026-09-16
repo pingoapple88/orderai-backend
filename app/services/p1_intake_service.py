@@ -368,7 +368,8 @@ def create_text_case(
     deliverable = decision_status == "approved" and not reasons and settings.p1_erp_sales_location_id > 0
     if decision_status == "approved" and settings.p1_erp_sales_location_id <= 0:
         reasons.append("erp_sales_location_unmapped")
-    state = "awaiting_erp_delivery" if deliverable else "needs_human_review"
+    # 即使解析完整，仍須先取得客戶文字確認並由人員覆核；不得由 worker 自動交付 ERP。
+    state = "needs_human_review"
     payload = _draft_payload(
         source_text=source_text,
         source_user_id=source_user_id,

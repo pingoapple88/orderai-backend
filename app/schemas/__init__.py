@@ -140,6 +140,31 @@ class InventoryInquiryOut(CamelModel):
     updated_at: Optional[datetime] = None
 
 
+# ── 青泉谷 P1 人工覆核／隔離送件 ──────────────────────────────────────────────
+class P1IntakeReview(CamelModel):
+    customer_confirmed: bool
+    note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class P1IntakeCaseOut(CamelModel):
+    id: int
+    store_id: int
+    state: str
+    state_version: int
+    reason_codes: Optional[dict] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class P1IntakeDispatchOut(CamelModel):
+    id: int
+    conversation_id: int
+    status: str
+    attempt_count: int
+    last_error_code: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
 # ── 開團批次 / 貼上抄單（WO-009）─────────────────────────────────────────────
 class BatchCreate(CamelModel):
     title: str

@@ -94,7 +94,9 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
                 "contact_authorized": request.contact_authorized,
             },
         )
-        return ErpIngestResult(provider="cloud_ding_http", reference=f"pending_customer:{data['id']}", status="accepted")
+        # 後續待確認訂單契約需要 ERP 的 pending_customer_id 數字值；不可包裝
+        # 成展示字串，否則送件編排無法安全地建立關聯。
+        return ErpIngestResult(provider="cloud_ding_http", reference=str(data["id"]), status="accepted")
 
     async def submit_pending_confirmation_order(
         self, request: PendingConfirmationOrderRequest

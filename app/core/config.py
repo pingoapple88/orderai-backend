@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     p1_erp_service_id: str = "orderai_p1"
     p1_erp_ingress_hmac_secret: str = ""
     p1_erp_timeout_seconds: int = 10
+    # 僅供受控整合測試。預設關閉，且預設僅接受 localhost；不得用於正式 ERP。
+    p1_isolated_delivery_enabled: bool = False
+    p1_erp_isolated_allowed_hosts: str = "localhost,127.0.0.1,::1"
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
@@ -126,6 +129,14 @@ class Settings(BaseSettings):
                 raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 的商品 ID 必須為正整數")
             result[local_id] = erp_id
         return result
+
+    @property
+    def p1_erp_isolated_allowed_host_set(self) -> set[str]:
+        return {
+            value.strip().lower()
+            for value in self.p1_erp_isolated_allowed_hosts.split(",")
+            if value.strip()
+        }
 
 
 @lru_cache

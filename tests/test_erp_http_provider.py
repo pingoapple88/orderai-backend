@@ -75,7 +75,7 @@ def test_http_provider_signs_and_normalizes_pending_customer_and_order_requests(
     customer_result = asyncio.run(provider.create_pending_customer(customer))
     order_result = asyncio.run(provider.submit_pending_confirmation_order(order))
 
-    assert customer_result.reference == "pending_customer:41"
+    assert customer_result.reference == "41"
     assert order_result.reference == "PCO-TEST-42"
     assert requests[0][0] == "/api/pending-customers/service/ingest"
     assert requests[0][1]["source_material_hash"] == hashlib.sha256(b"customer-0001").hexdigest()

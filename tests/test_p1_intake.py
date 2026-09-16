@@ -198,7 +198,7 @@ def test_approved_text_creates_encrypted_p1_draft_and_blocked_outbox_not_local_o
     assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 0
     case = db_session.execute(select(IntakeConversation)).scalar_one()
     outbox = db_session.execute(select(ErpDeliveryOutbox)).scalar_one()
-    assert case.state == "awaiting_erp_delivery"
+    assert case.state == "needs_human_review"
     assert outbox.status == "blocked" and outbox.last_error_code == "ERP_CONNECTION_BLOCKED"
     customer_request, order_request = p1_intake_service.build_erp_requests_from_outbox(outbox)
     assert customer_request.line_user_id == "Up1buyer"
