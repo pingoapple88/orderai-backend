@@ -1,9 +1,9 @@
 """青泉谷 P1 的人工覆核與隔離 ERP 送件邊界。
 
 此服務不由 webhook 或 worker 自動觸發。只有具店鋪範圍 JWT 的人員先完成
-客戶文字確認與人工覆核，且顯式開啟 localhost 隔離開關後，才能透過可替換
-ERP Adapter 送出「待確認客戶／待確認訂單」。流程不建立本地正式訂單、客戶、
-付款、庫存預留、扣庫、出貨或開票。
+客戶文字確認與人工覆核，且顯式開啟 localhost 隔離開關或獨立外部 UAT 守門後，
+才能透過可替換 ERP Adapter 送出「待確認客戶／待確認訂單」。流程不建立本地
+正式訂單、客戶、付款、庫存預留、扣庫、出貨或開票。
 """
 from __future__ import annotations
 
@@ -23,6 +23,9 @@ from app.models import AuditLog, ErpDeliveryOutbox, IntakeConversation, Store
 from app.services.p1_intake_service import build_erp_requests_from_outbox
 
 settings = get_settings()
+
+_P1_UAT_ENVIRONMENT = "uat"
+_P1_UAT_MARKER = "qingquan-p1-uat"
 
 
 class P1ConversationNotFound(Exception):
@@ -155,15 +158,31 @@ def review_case(
 
 
 def _assert_isolated_target() -> None:
-    """完全以設定 fail-closed；即使 Adapter 存在也不得跨出隔離 allowlist。"""
-    if not settings.p1_isolated_delivery_enabled:
+    """以 localhost 與外部 UAT 兩條獨立路徑 fail-closed 驗證送件目標。"""
+    # 維持既有預設：兩條受控路徑都未明確開啟時，不解析或接受任何 URL。
+    if not settings.p1_isolated_delivery_enabled and not settings.p1_uat_delivery_enabled:
         raise P1DeliveryBlocked("P1_ISOLATED_DELIVERY_DISABLED")
+
     parsed = urlsplit(settings.p1_erp_base_url)
     hostname = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"} or not hostname:
         raise P1DeliveryBlocked("P1_ERP_BASE_URL_INVALID")
-    if hostname not in settings.p1_erp_isolated_allowed_host_set:
+
+    # 舊 localhost-only 開關絕不能放寬到外部網域；保持既有錯誤碼以防誤設。
+    if settings.p1_isolated_delivery_enabled:
+        if hostname in settings.p1_erp_isolated_allowed_host_set:
+            return
         raise P1DeliveryBlocked("P1_ERP_TARGET_NOT_ISOLATED")
+
+    # 外部 UAT 必須逐項成立；任一缺失即在 Adapter 前停止，避免 production 誤送。
+    if settings.environment.strip().lower() != _P1_UAT_ENVIRONMENT:
+        raise P1DeliveryBlocked("P1_UAT_ENVIRONMENT_NOT_ALLOWED")
+    if settings.p1_uat_environment_marker != _P1_UAT_MARKER:
+        raise P1DeliveryBlocked("P1_UAT_MARKER_INVALID")
+    if parsed.scheme != "https":
+        raise P1DeliveryBlocked("P1_UAT_HTTPS_REQUIRED")
+    if hostname not in settings.p1_erp_uat_allowed_host_set:
+        raise P1DeliveryBlocked("P1_ERP_UAT_TARGET_NOT_ALLOWED")
 
 
 async def dispatch_outbox(

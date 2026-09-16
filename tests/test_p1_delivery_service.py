@@ -28,6 +28,14 @@ class _AcceptedErp:
         return ErpIngestResult(provider="isolated-test", reference="91", status="accepted")
 
 
+class _ProviderMustNotRun:
+    async def create_pending_customer(self, request):
+        raise AssertionError("受控送件守門失敗前不可呼叫 ERP Adapter")
+
+    async def submit_pending_confirmation_order(self, request):
+        raise AssertionError("受控送件守門失敗前不可呼叫 ERP Adapter")
+
+
 def _make_deliverable_case(db_session, monkeypatch):
     _, store = _seed(db_session)
     product_id = db_session.execute(select(Product.id)).scalar_one()
@@ -105,6 +113,86 @@ def test_isolated_delivery_rejects_nonlocal_target_before_provider_is_called(db_
         asyncio.run(p1_delivery_service.dispatch_outbox(db_session, principal, store.id, case.id, provider=_AcceptedErp()))
     assert exc.value.reason_code == "P1_ERP_TARGET_NOT_ISOLATED"
     assert db_session.execute(select(ErpDeliveryOutbox)).scalar_one().attempt_count == 0
+
+
+def _configure_external_uat_delivery(monkeypatch):
+    monkeypatch.setattr(p1_delivery_service.settings, "p1_isolated_delivery_enabled", False)
+    monkeypatch.setattr(p1_delivery_service.settings, "p1_uat_delivery_enabled", True)
+    monkeypatch.setattr(p1_delivery_service.settings, "environment", "uat")
+    monkeypatch.setattr(p1_delivery_service.settings, "p1_uat_environment_marker", "qingquan-p1-uat")
+    monkeypatch.setattr(
+        p1_delivery_service.settings,
+        "p1_erp_base_url",
+        "https://merchcore-platform-uat.example.test",
+    )
+    monkeypatch.setattr(
+        p1_delivery_service.settings,
+        "p1_erp_uat_allowed_hosts",
+        "merchcore-platform-uat.example.test",
+    )
+
+
+def test_external_uat_delivery_requires_all_explicit_guards_before_provider_is_called(db_session, monkeypatch):
+    store, case = _make_deliverable_case(db_session, monkeypatch)
+    principal = _principal(db_session, store.id)
+    _configure_external_uat_delivery(monkeypatch)
+    p1_delivery_service.review_case(db_session, principal, store.id, case.id, customer_confirmed=True)
+
+    delivered = asyncio.run(p1_delivery_service.dispatch_outbox(
+        db_session, principal, store.id, case.id, provider=_AcceptedErp()
+    ))
+
+    assert delivered.status == "delivered"
+    assert db_session.get(IntakeConversation, case.id).state == "closed"
+    assert db_session.execute(select(Order)).scalars().all() == []
+    assert db_session.execute(select(Customer)).scalars().all() == []
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason_code"),
+    [
+        ("p1_uat_delivery_enabled", False, "P1_ISOLATED_DELIVERY_DISABLED"),
+        ("environment", "production", "P1_UAT_ENVIRONMENT_NOT_ALLOWED"),
+        ("p1_uat_environment_marker", "", "P1_UAT_MARKER_INVALID"),
+        ("p1_erp_uat_allowed_hosts", "other-uat.example.test", "P1_ERP_UAT_TARGET_NOT_ALLOWED"),
+    ],
+)
+def test_external_uat_delivery_fails_closed_for_missing_or_production_guards(
+    db_session, monkeypatch, field, value, reason_code
+):
+    store, case = _make_deliverable_case(db_session, monkeypatch)
+    principal = _principal(db_session, store.id)
+    _configure_external_uat_delivery(monkeypatch)
+    monkeypatch.setattr(p1_delivery_service.settings, field, value)
+    p1_delivery_service.review_case(db_session, principal, store.id, case.id, customer_confirmed=True)
+
+    with pytest.raises(p1_delivery_service.P1DeliveryBlocked) as exc:
+        asyncio.run(p1_delivery_service.dispatch_outbox(
+            db_session, principal, store.id, case.id, provider=_ProviderMustNotRun()
+        ))
+
+    assert exc.value.reason_code == reason_code
+    outbox = db_session.execute(select(ErpDeliveryOutbox)).scalar_one()
+    assert outbox.status == "queued" and outbox.attempt_count == 0
+
+
+def test_external_uat_delivery_requires_https_even_for_exact_allowed_host(db_session, monkeypatch):
+    store, case = _make_deliverable_case(db_session, monkeypatch)
+    principal = _principal(db_session, store.id)
+    _configure_external_uat_delivery(monkeypatch)
+    monkeypatch.setattr(
+        p1_delivery_service.settings,
+        "p1_erp_base_url",
+        "http://merchcore-platform-uat.example.test",
+    )
+    p1_delivery_service.review_case(db_session, principal, store.id, case.id, customer_confirmed=True)
+
+    with pytest.raises(p1_delivery_service.P1DeliveryBlocked) as exc:
+        asyncio.run(p1_delivery_service.dispatch_outbox(
+            db_session, principal, store.id, case.id, provider=_ProviderMustNotRun()
+        ))
+
+    assert exc.value.reason_code == "P1_UAT_HTTPS_REQUIRED"
 
 
 def test_p1_intake_api_rejects_cross_store_owner_before_case_access(db_session, monkeypatch):

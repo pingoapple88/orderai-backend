@@ -93,6 +93,11 @@ class Settings(BaseSettings):
     # 僅供受控整合測試。預設關閉，且預設僅接受 localhost；不得用於正式 ERP。
     p1_isolated_delivery_enabled: bool = False
     p1_erp_isolated_allowed_hosts: str = "localhost,127.0.0.1,::1"
+    # 僅供獨立外部 UAT。與 localhost 隔離模式分開，預設關閉且只接受精準 HTTPS host。
+    # 環境必須是 uat 且 marker 必須與此 P1 專用常數完全相同，否則一律拒絕送件。
+    p1_uat_delivery_enabled: bool = False
+    p1_uat_environment_marker: str = ""
+    p1_erp_uat_allowed_hosts: str = ""
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
@@ -135,6 +140,14 @@ class Settings(BaseSettings):
         return {
             value.strip().lower()
             for value in self.p1_erp_isolated_allowed_hosts.split(",")
+            if value.strip()
+        }
+
+    @property
+    def p1_erp_uat_allowed_host_set(self) -> set[str]:
+        return {
+            value.strip().lower()
+            for value in self.p1_erp_uat_allowed_hosts.split(",")
             if value.strip()
         }
 
