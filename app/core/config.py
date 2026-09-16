@@ -102,6 +102,8 @@ class Settings(BaseSettings):
     # 此設定不得作為 LINE、正式資料或 production 環境的種子捷徑。
     p1_uat_seed_enabled: bool = False
     p1_uat_database_host: str = ""
+    # 僅供隔離 UAT 手動執行一次真實 HMAC 交付驗收；預設禁止。
+    p1_uat_direct_acceptance_enabled: bool = False
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"

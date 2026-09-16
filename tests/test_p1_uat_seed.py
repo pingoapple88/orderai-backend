@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import pytest
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 
-from app.models import BillingRecord, Customer, Order, Store
+from app.models import BillingRecord, Customer, LineWebhookEvent, Order, Store
 from app import p1_uat_seed
 
 
@@ -57,3 +59,23 @@ def test_clear_removes_only_synthetic_baseline(db_session, monkeypatch):
     p1_uat_seed.seed_p1_uat(db_session)
     p1_uat_seed.clear_p1_uat(db_session)
     assert db_session.execute(select(Store)).scalars().all() == []
+
+
+def test_synthetic_direct_event_is_not_treated_as_line_webhook_side_effect(db_session, monkeypatch):
+    _configure_uat(monkeypatch)
+    seeded = p1_uat_seed.seed_p1_uat(db_session)
+    db_session.add(LineWebhookEvent(
+        company_id=seeded.company_id,
+        store_id=seeded.store_id,
+        channel=p1_uat_seed._SYNTHETIC_DIRECT_ACCEPTANCE_CHANNEL,
+        webhook_event_id="qingquan-p1-uat-direct-ledger-test",
+        event_type="synthetic_direct_acceptance",
+        message_type="text",
+        message_id_hmac="a" * 64,
+        source_user_hmac="b" * 64,
+        occurred_at=datetime.now(timezone.utc),
+        status="processed",
+    ))
+    db_session.commit()
+    baseline = p1_uat_seed.verify_p1_uat_baseline(db_session)
+    assert baseline["line_webhook_events"] == 0

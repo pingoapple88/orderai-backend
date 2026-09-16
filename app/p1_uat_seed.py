@@ -46,6 +46,7 @@ _SYNTHETIC_STORE_NAME = "青泉谷 P1 UAT 合成店"
 _SYNTHETIC_OWNER_LINE_ID = "UAT_QINGQUAN_P1_ORDERAI_OWNER"
 _SYNTHETIC_OWNER_EMAIL = "qingquan-p1-orderai-owner@uat.invalid"
 _SYNTHETIC_PRODUCT_NAME = "青泉谷 P1 UAT 合成商品"
+_SYNTHETIC_DIRECT_ACCEPTANCE_CHANNEL = "p1_uat_direct"
 
 
 class P1UatSeedBlocked(RuntimeError):
@@ -104,7 +105,15 @@ def _forbidden_counts(db: Session, store_id: int) -> dict[str, int]:
         "formal_customers": int(db.scalar(select(func.count()).select_from(Customer).where(Customer.store_id == store_id)) or 0),
         "formal_orders": int(db.scalar(select(func.count()).select_from(Order).where(Order.store_id == store_id)) or 0),
         "payment_records": int(db.scalar(select(func.count()).select_from(BillingRecord).where(BillingRecord.store_id == store_id)) or 0),
-        "line_webhook_events": int(db.scalar(select(func.count()).select_from(LineWebhookEvent).where(LineWebhookEvent.store_id == store_id)) or 0),
+        "line_webhook_events": int(
+            db.scalar(
+                select(func.count()).select_from(LineWebhookEvent).where(
+                    LineWebhookEvent.store_id == store_id,
+                    LineWebhookEvent.channel != _SYNTHETIC_DIRECT_ACCEPTANCE_CHANNEL,
+                )
+            )
+            or 0
+        ),
     }
 
 
