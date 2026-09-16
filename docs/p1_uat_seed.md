@@ -27,6 +27,8 @@ python scripts/p1_uat_seed.py --clear
 
 `--seed` 可重跑，僅建立合成 company、直接通路 `plans`、store、owner 和一項合成商品。`--verify` 唯讀檢查正式 Customer、Order、BillingRecord、LINE webhook event 為零。`--clear` 僅會刪除精準識別的合成資料；若偵測到上述任一正式副作用，會 fail-closed 拒絕清理，以保留人工調查證據。
 
+隔離 Railway 部署由 `railway.json` 在服務啟動前執行 `alembic upgrade head`。該設定不會呼叫種子，種子仍必須由隔離 service 的人工受控 shell 明確執行。
+
 ## P1 邊界
 
 初始種子不會建立待確認客戶、待確認訂單、outbox、付款、庫存預留、扣庫、出貨或開票。外部 ERP 送件需另依人工覆核、精確 UAT host allowlist、HMAC 與後續直接受控驗收完成；LINE 測試 channel / webhook 更必須在直接驗收通過後另行處理。
