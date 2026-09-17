@@ -5,6 +5,7 @@ db_engine：乾淨 test DB → `alembic upgrade head`(真 PostgreSQL) → yield 
 必須是「alembic 建的 DB」對比「models」，才抓得到漂移。
 """
 import os
+import shutil
 import subprocess
 
 import pytest
@@ -15,7 +16,10 @@ from app.core.config import get_settings
 
 _TEST_DB = "orderai_drift_test"
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_ALEMBIC = os.path.join(_REPO_ROOT, ".venv", "bin", "alembic")
+_PROJECT_ALEMBIC = os.path.join(_REPO_ROOT, ".venv", "bin", "alembic")
+_ALEMBIC = os.environ.get("ALEMBIC_BIN") or (
+    _PROJECT_ALEMBIC if os.path.exists(_PROJECT_ALEMBIC) else shutil.which("alembic")
+)
 
 
 def _base_prefix() -> str:
@@ -29,6 +33,8 @@ def _admin_engine():
 
 @pytest.fixture(scope="session")
 def db_engine():
+    if not _ALEMBIC:
+        raise RuntimeError("alembic executable not found; set ALEMBIC_BIN for isolated migration tests")
     test_url = _base_prefix() + "/" + _TEST_DB
     admin = _admin_engine()
     with admin.connect() as c:
@@ -56,7 +62,7 @@ def db_engine():
 
 
 # 測試會碰的表；CASCADE + RESTART IDENTITY 一次清空，保證每個 test 從空白起。
-_TRUNCATE = "inventory_inquiries, module_registrations, order_items, orders, customers, users, stores, plans, audit_logs, dealers, companies"
+_TRUNCATE = "erp_delivery_outbox, attachment_drafts, intake_conversations, line_webhook_events, inventory_inquiries, module_registrations, order_items, orders, customers, users, stores, plans, audit_logs, dealers, companies"
 
 
 @pytest.fixture()

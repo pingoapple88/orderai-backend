@@ -43,9 +43,59 @@ class ErpIngestResult:
     status: str                        # accepted / rejected
 
 
+@dataclass(frozen=True)
+class PendingCustomerRequest:
+    """OrderAI 到雲鼎的待確認客戶標準化請求。"""
+    company_id: int
+    store_id: int
+    idempotency_key: str
+    line_user_id: Optional[str]
+    display_name: Optional[str]
+    phone: Optional[str]
+    contact_authorized: bool
+    source_channel: str
+
+
+@dataclass(frozen=True)
+class PendingConfirmationOrderItem:
+    product_name: str
+    quantity: int
+    unit: str
+    product_id: Optional[int]
+
+
+@dataclass(frozen=True)
+class PendingConfirmationOrderRequest:
+    """OrderAI 到雲鼎的待確認訂單標準化請求。
+
+    此資料模型不含付款、保留、扣庫、出貨或開票欄位。
+    """
+    company_id: int
+    store_id: int
+    sales_location_id: int
+    idempotency_key: str
+    source_event_id: str
+    buyer_line_user_id: Optional[str]
+    buyer_name: Optional[str]
+    requested_for: str
+    special_request: Optional[str]
+    items: List[PendingConfirmationOrderItem]
+    pending_customer_id: Optional[int] = None
+
+
 class IErpIngestProvider(ABC):
     """雲鼎 ERP 待確認訂單入站 Adapter。具體實作見 app/providers/。"""
 
     @abstractmethod
     async def submit_pending_order(self, request: ErpIngestRequest) -> ErpIngestResult:
         """送出一張待確認訂單至雲鼎 ERP。未就緒時 raise ErpIngestBlockedError。"""
+
+    @abstractmethod
+    async def create_pending_customer(self, request: PendingCustomerRequest) -> ErpIngestResult:
+        """建立待確認客戶；未就緒時 raise ErpIngestBlockedError。"""
+
+    @abstractmethod
+    async def submit_pending_confirmation_order(
+        self, request: PendingConfirmationOrderRequest
+    ) -> ErpIngestResult:
+        """建立待確認訂單；不得帶付款、保留或扣庫副作用。"""

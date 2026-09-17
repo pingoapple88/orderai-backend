@@ -1,4 +1,5 @@
 """集中設定（律二：外部化設定）。所有 Key/閾值一律從環境變數讀取。"""
+import json
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -72,6 +73,38 @@ class Settings(BaseSettings):
     queue_backend: str = "redis"          # redis | memory（測試/開發）
     queue_name: str = "line_webhook"
 
+    # 青泉谷 P1：預設關閉。啟用時所有個資草稿須以獨立部署注入的 key 加密／雜湊。
+    p1_intake_enabled: bool = False
+    p1_pii_encryption_key: str = ""
+    p1_identity_hmac_key: str = ""
+    p1_attachment_followup_enabled: bool = False
+    p1_attachment_max_bytes: int = 10_000_000
+    p1_internal_relay_line_user_ids: str = ""
+    p1_erp_sales_location_id: int = 0
+    # JSON object: {"<OrderAI local product id>": <ERP product id>}。
+    # 未設定或無效 mapping 時 P1 必須維持人工覆核，絕不可猜測 ERP 商品。
+    p1_erp_product_id_map_json: str = "{}"
+    # 預設 blocked；僅在具備受控測試或部署設定時可選 http。此設定本身不會啟用 outbox 傳送。
+    p1_erp_ingest_provider: str = "blocked"
+    p1_erp_base_url: str = ""
+    p1_erp_service_id: str = "orderai_p1"
+    p1_erp_ingress_hmac_secret: str = ""
+    p1_erp_timeout_seconds: int = 10
+    # 僅供受控整合測試。預設關閉，且預設僅接受 localhost；不得用於正式 ERP。
+    p1_isolated_delivery_enabled: bool = False
+    p1_erp_isolated_allowed_hosts: str = "localhost,127.0.0.1,::1"
+    # 僅供獨立外部 UAT。與 localhost 隔離模式分開，預設關閉且只接受精準 HTTPS host。
+    # 環境必須是 uat 且 marker 必須與此 P1 專用常數完全相同，否則一律拒絕送件。
+    p1_uat_delivery_enabled: bool = False
+    p1_uat_environment_marker: str = ""
+    p1_erp_uat_allowed_hosts: str = ""
+    # 僅限一次性、人工觸發的隔離 UAT 合成基準；預設關閉且須綁定精準 Railway internal DB host。
+    # 此設定不得作為 LINE、正式資料或 production 環境的種子捷徑。
+    p1_uat_seed_enabled: bool = False
+    p1_uat_database_host: str = ""
+    # 僅供隔離 UAT 手動執行一次真實 HMAC 交付驗收；預設禁止。
+    p1_uat_direct_acceptance_enabled: bool = False
+
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
     stallpay_api_key: str = ""
@@ -83,6 +116,46 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> list:
         """把逗號分隔的 allowed_origins 拆成 list（去空白、濾空項）。"""
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def p1_internal_relay_user_ids(self) -> set[str]:
+        return {value.strip() for value in self.p1_internal_relay_line_user_ids.split(",") if value.strip()}
+
+    @property
+    def p1_erp_product_id_map(self) -> dict[int, int]:
+        try:
+            raw = json.loads(self.p1_erp_product_id_map_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 必須是 JSON object") from exc
+        if not isinstance(raw, dict):
+            raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 必須是 JSON object")
+        result: dict[int, int] = {}
+        for local_product_id, erp_product_id in raw.items():
+            try:
+                local_id = int(local_product_id)
+                erp_id = int(erp_product_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 的商品 ID 必須為正整數") from exc
+            if local_id <= 0 or erp_id <= 0:
+                raise ValueError("P1_ERP_PRODUCT_ID_MAP_JSON 的商品 ID 必須為正整數")
+            result[local_id] = erp_id
+        return result
+
+    @property
+    def p1_erp_isolated_allowed_host_set(self) -> set[str]:
+        return {
+            value.strip().lower()
+            for value in self.p1_erp_isolated_allowed_hosts.split(",")
+            if value.strip()
+        }
+
+    @property
+    def p1_erp_uat_allowed_host_set(self) -> set[str]:
+        return {
+            value.strip().lower()
+            for value in self.p1_erp_uat_allowed_hosts.split(",")
+            if value.strip()
+        }
 
 
 @lru_cache
