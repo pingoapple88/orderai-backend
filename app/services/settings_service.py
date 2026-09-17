@@ -25,3 +25,11 @@ def get_int_setting(db: Session, key: str, default: int = 0) -> int:
         return int(val) if val is not None else default
     except (ValueError, TypeError):
         return default
+
+
+def get_float_setting(db: Session, key: str, default: float = 0.0) -> float:
+    val = get_setting(db, key)
+    try:
+        return float(val) if val is not None else default
+    except (ValueError, TypeError):
+        return default

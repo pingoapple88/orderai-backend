@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -108,6 +108,63 @@ class ProductUpdate(CamelModel):
     is_active: Optional[bool] = None
 
 
+# ── 人工庫存確認（M1-INV-01）──────────────────────────────────────────────────
+class InventoryInquiryCreate(CamelModel):
+    requester_name: Optional[str] = Field(default=None, max_length=120)
+    customer_id: Optional[int] = Field(default=None, ge=1)
+    product_id: Optional[int] = Field(default=None, ge=1)
+    requested_product_name: str = Field(min_length=1, max_length=255)
+    requested_quantity: Optional[int] = Field(default=None, ge=1)
+    requested_unit: Optional[str] = Field(default=None, max_length=30)
+
+
+class InventoryInquiryReview(CamelModel):
+    decision: Literal["available", "unavailable"]
+    note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class InventoryInquiryOut(CamelModel):
+    id: int
+    store_id: int
+    product_id: Optional[int] = None
+    customer_id: Optional[int] = None
+    requester_name: Optional[str] = None
+    requested_product_name: str
+    requested_quantity: Optional[int] = None
+    requested_unit: Optional[str] = None
+    status: str
+    decision_note: Optional[str] = None
+    reviewed_by_user_id: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ── 青泉谷 P1 人工覆核／隔離送件 ──────────────────────────────────────────────
+class P1IntakeReview(CamelModel):
+    customer_confirmed: bool
+    note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class P1IntakeCaseOut(CamelModel):
+    id: int
+    store_id: int
+    state: str
+    state_version: int
+    reason_codes: Optional[dict] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class P1IntakeDispatchOut(CamelModel):
+    id: int
+    conversation_id: int
+    status: str
+    attempt_count: int
+    last_error_code: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
 # ── 開團批次 / 貼上抄單（WO-009）─────────────────────────────────────────────
 class BatchCreate(CamelModel):
     title: str
@@ -139,3 +196,42 @@ class CommitLine(CamelModel):
 class CommitRequest(CamelModel):
     raw_text: str                       # ← rawText（去重用）
     lines: List[CommitLine] = []
+
+
+# ── W2 Module self-service ──────────────────────────────────────────────────
+class ModuleRegistrationCreate(CamelModel):
+    company_name: str = Field(min_length=1, max_length=120)
+    store_name: str = Field(min_length=1, max_length=120)
+    channel: Literal["direct", "dealer", "enterprise"]
+    locale: Literal["zh-Hant-TW", "en-US", "th-TH", "ja-JP", "id-ID"] = "zh-Hant-TW"
+    idempotency_key: str = Field(min_length=8, max_length=255, pattern=r"^[A-Za-z0-9._:-]+$")
+    plan_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+
+
+class ModulePlanOut(CamelModel):
+    name: str
+    channel: str
+    monthly_price: int
+    currency: str
+    ai_extraction_limit: Optional[int] = None
+    team_member_limit: Optional[int] = None
+    price_version_date: str = "2026-08-24"
+    price_disclaimer: str = "以官網最新價格為準"
+
+
+class ModuleRegistrationOut(CamelModel):
+    id: int
+    module_key: str
+    module_version: str
+    channel: str
+    locale: str
+    status: str
+
+
+class ModuleStatusOut(CamelModel):
+    store_key: Optional[str] = None
+    plan_name: Optional[str] = None
+    channel: Optional[str] = None
+    ai_usage_count: int
+    ai_extraction_limit: Optional[int] = None
+    status: str

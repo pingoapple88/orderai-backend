@@ -28,7 +28,7 @@ def test_get_text_from_empty_event_returns_none():
 # ── fail-closed 邏輯測試（不需 HTTP）─────────────────────────────────────
 
 def test_high_confidence_above_threshold():
-    """信心 0.9 > 0.7 threshold，應建單。"""
+    """信心 0.9 > 0.85 threshold，應通過第一層信心檢查。"""
     result = ExtractionResult(
         items=[ExtractedItem(product_name="豬肉乾", quantity=2, unit_price=150)],
         confidence_score=0.9,
@@ -39,7 +39,7 @@ def test_high_confidence_above_threshold():
 
 
 def test_low_confidence_below_threshold():
-    """信心 0.3 < 0.7 threshold，fail-closed 不建單。"""
+    """信心 0.3 < 0.85 threshold，fail-closed 不建單。"""
     result = ExtractionResult(
         items=[],
         confidence_score=0.3,
@@ -49,23 +49,38 @@ def test_low_confidence_below_threshold():
     assert result.confidence_score < get_settings().ai_confidence_threshold
 
 
-def test_normalize_items_beauty():
-    """美業 item 正規化：service_name → product_name。"""
-    from app.providers.openai_llm import _normalize_items
-    raw = [{"service_name": "剪髮", "price": 500, "appointment_time": "14:00", "staff_name": "小美"}]
-    items = _normalize_items("beauty", raw)
-    assert len(items) == 1
-    assert items[0].product_name == "剪髮"
-    assert items[0].unit_price == 500
-    assert items[0].appointment_time == "14:00"
-    assert items[0].staff_name == "小美"
+def test_parse_result_beauty():
+    """美業結構化輸出只接受明確服務、時段與人員，不填價格。"""
+    from app.providers.http_chat_llm import _parse_result
+    result = _parse_result(
+        {
+            "items": [{
+                "product_name": "剪髮", "quantity": 1, "appointment_time": "14:00",
+                "staff_name": "小美", "evidence": "剪髮，14:00 找小美", "field_confidence": 0.9,
+            }],
+            "confidence_score": 0.9,
+        },
+        "beauty",
+        "test",
+    )
+    assert len(result.items) == 1
+    assert result.items[0].product_name == "剪髮"
+    assert result.items[0].appointment_time == "14:00"
+    assert result.items[0].staff_name == "小美"
+    assert result.items[0].unit_price is None
 
 
-def test_normalize_items_ecom():
-    """電商 item 正規化：product_name/quantity/unit_price。"""
-    from app.providers.openai_llm import _normalize_items
-    raw = [{"product_name": "豬肉乾", "quantity": 2, "unit_price": 150}]
-    items = _normalize_items("ecom", raw)
-    assert items[0].product_name == "豬肉乾"
-    assert items[0].quantity == 2
-    assert items[0].unit_price == 150
+def test_parse_result_ecom_omits_model_price():
+    """電商解析只保留商品、數量與原文證據；價格由型錄帶入。"""
+    from app.providers.http_chat_llm import _parse_result
+    result = _parse_result(
+        {
+            "items": [{"product_name": "豬肉乾", "quantity": 2, "evidence": "豬肉乾+2", "field_confidence": 0.9}],
+            "confidence_score": 0.9,
+        },
+        "ecom",
+        "test",
+    )
+    assert result.items[0].product_name == "豬肉乾"
+    assert result.items[0].quantity == 2
+    assert result.items[0].unit_price is None

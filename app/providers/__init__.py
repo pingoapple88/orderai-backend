@@ -4,8 +4,12 @@ from app.core.interfaces.auth_provider import IAuthProvider
 from app.core.interfaces.llm_provider import ILLMProvider
 from app.core.interfaces.notification_provider import INotificationProvider
 from app.core.interfaces.payment_provider import IPaymentProvider
+from app.core.interfaces.erp_ingest import IErpIngestProvider
+from app.providers.erp_blocked import BlockedErpIngestProvider
+from app.providers.erp_http import CloudDingErpIngestProvider
+from app.providers.failover_llm import FailoverLLMProvider
 from app.providers.line_auth import LineAuthProvider
-from app.providers.openai_llm import OpenAILLMProvider
+from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
 from app.providers.stallpay import StallPayProvider
 
 settings = get_settings()
@@ -15,11 +19,43 @@ def get_auth_provider() -> IAuthProvider:
     return LineAuthProvider()
 
 
+def _build_llm_provider(provider: str, *, use_fallback_settings: bool = False) -> ILLMProvider:
+    provider = provider.lower()
+    connection = {
+        "api_key": settings.llm_fallback_api_key if use_fallback_settings else settings.llm_api_key,
+        "api_base": settings.llm_fallback_api_base if use_fallback_settings else settings.llm_api_base,
+        "model": settings.llm_fallback_model if use_fallback_settings else settings.llm_model,
+        "temperature": settings.llm_fallback_temperature if use_fallback_settings else settings.llm_temperature,
+        "timeout_seconds": (
+            settings.llm_fallback_timeout_seconds
+            if use_fallback_settings
+            else settings.llm_timeout_seconds
+        ),
+        "allow_empty_api_key": (
+            settings.llm_fallback_allow_empty_api_key
+            if use_fallback_settings
+            else settings.llm_allow_empty_api_key
+        ),
+        "max_retries": settings.llm_fallback_max_retries if use_fallback_settings else settings.llm_max_retries,
+    }
+    if provider in {"http_chat", "openai_compatible", "openai"}:
+        return OpenAICompatibleLLMProvider(**connection)
+    if provider == "ollama":
+        return OllamaLLMProvider(**connection)
+    if provider in {"anthropic", "claude"}:
+        return AnthropicMessagesLLMProvider(**connection)
+    raise RuntimeError("Unsupported LLM provider: {}".format(provider))
+
+
 def get_llm_provider() -> ILLMProvider:
-    # 3.9-safe：以 if/elif 取代 match
-    # if settings.llm_provider.lower() == "claude": return ClaudeLLMProvider()
-    # if settings.llm_provider.lower() == "ollama": return OllamaLLMProvider()
-    return OpenAILLMProvider()
+    primary = _build_llm_provider(settings.llm_provider)
+    fallback_name = settings.llm_fallback_provider.strip()
+    if not fallback_name:
+        return primary
+    return FailoverLLMProvider(
+        primary=primary,
+        fallback=_build_llm_provider(fallback_name, use_fallback_settings=True),
+    )
 
 
 def get_notification_provider() -> INotificationProvider:
@@ -30,6 +66,30 @@ def get_notification_provider() -> INotificationProvider:
 def get_payment_provider() -> IPaymentProvider:
     # OrderAI 不自處理金流，一律委派 StallPay
     return StallPayProvider()
+
+
+def get_erp_ingest_provider() -> IErpIngestProvider:
+    """雲鼎 ERP 待確認訂單入站 Adapter（WO-04 ENG-03）。
+    未取得 owner/sandbox/書面契約前一律回 fail-closed 佔位，不連線、不送資料（§4）。
+    真實實作就緒後於此依設定切換（律一：可替換）。"""
+    provider = settings.p1_erp_ingest_provider.strip().lower()
+    if provider in {"", "blocked"}:
+        return BlockedErpIngestProvider()
+    if provider == "http":
+        if (
+            not settings.p1_erp_base_url.strip()
+            or not settings.p1_erp_service_id.strip()
+            or not settings.p1_erp_ingress_hmac_secret.strip()
+            or settings.p1_erp_timeout_seconds <= 0
+        ):
+            return BlockedErpIngestProvider()
+        return CloudDingErpIngestProvider(
+            base_url=settings.p1_erp_base_url,
+            service_id=settings.p1_erp_service_id,
+            ingress_hmac_secret=settings.p1_erp_ingress_hmac_secret,
+            timeout_seconds=settings.p1_erp_timeout_seconds,
+        )
+    return BlockedErpIngestProvider()
 
 
 # ---- PR-2：佇列工廠（情境一）----

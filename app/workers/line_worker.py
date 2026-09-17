@@ -4,8 +4,8 @@
 - v0 一人一店（快照 §九）：order 歸屬 settings.default_store_id，user_id = 該店 owner。
   找不到 store 或 owner → fail-closed（不建孤兒單、不建到錯店）。多店路由見 WO-007。
 - 去重：orders.line_event_id UNIQUE。直接 INSERT，撞則 IntegrityError 攔（⛔ 不 check-then-write）。
-- 價格 option A：v0 不自動算價，unit_price 留 0（team-mom 事後 PUT 補價），⛔ 無 ×100。
-- confidence < threshold → fail-closed（不建單，只通知）。
+- 價格只取店家型錄；未命中商品不猜價，轉人工覆核。
+- 信心、型錄、數量與原文證據任一未通過 → fail-closed（不建單，只通知）。
 - LLM/LINE HTTP、DB 需真環境；沙箱以注入 db + mock provider 驗邏輯層。
 """
 from __future__ import annotations
@@ -17,11 +17,12 @@ from typing import Any, Dict, Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+import httpx
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import Customer, Store, User
-from app.services import order_service, product_service
+from app.services import order_risk_service, order_service, p1_intake_service, product_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -80,6 +81,10 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
     user_id: Optional[str] = source.get("userId")
     line_event_id: Optional[str] = event.get("webhookEventId")
 
+    if settings.p1_intake_enabled:
+        await _process_p1_event(db, event, llm, notif)
+        return
+
     # pre-filter：只處理文字訊息
     text = _get_text_from_event(event)
     if not text:
@@ -93,14 +98,32 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
 
     industry_type = store.industry_type or "ecom"
 
+    principal = {"user_id": owner.id, "store_id": store.id}
+
     # LLM 解析
     try:
         result = await llm.extract_order(text=text, industry_type=industry_type)
     except Exception as exc:  # noqa: BLE001 — 對外服務失敗一律降級通知
         logger.error("LLM extract_order failed: %s", exc)
+        reason_code = getattr(exc, "reason_code", None)
+        if reason_code is None:
+            reason_code = "provider_timeout" if isinstance(
+                exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)
+            ) else "provider_error"
+        order_risk_service.audit_ai_decision(
+            db,
+            principal=principal,
+            extraction=None,
+            decision=order_risk_service.RiskDecision(
+                status="needs_review",
+                reasons=[reason_code],
+                threshold=settings.ai_confidence_threshold,
+            ),
+            source_text=text,
+        )
         if reply_token and user_id:
             await notif.send_message(
-                to=user_id, text="系統忙碌中，請稍後再試。", reply_token=reply_token
+                to=user_id, text="此筆內容需人工確認（原因：{}）。".format(reason_code), reply_token=reply_token
             )
         return
 
@@ -109,29 +132,39 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         result.confidence_score, result.industry_type, len(result.items),
     )
 
-    # fail-closed：信心不足不建單
-    if result.confidence_score < settings.ai_confidence_threshold:
+    # 只以店家型錄帶價，不相信模型提供的價格。
+    priced = product_service.price_extracted_items(db, store.id, result.items)
+    decision = order_risk_service.evaluate_order_extraction(
+        db,
+        extraction=result,
+        priced_items=priced,
+        default_threshold=settings.ai_confidence_threshold,
+    )
+    order_risk_service.audit_ai_decision(
+        db,
+        principal=principal,
+        extraction=result,
+        decision=decision,
+        source_text=text,
+    )
+    if decision.status != "approved":
         logger.warning(
-            "confidence %.2f < threshold %.2f, skip order creation",
-            result.confidence_score, settings.ai_confidence_threshold,
+            "order extraction requires review: reasons=%s confidence=%.2f",
+            decision.reasons,
+            result.confidence_score,
         )
         if reply_token and user_id:
             await notif.send_message(
                 to=user_id,
-                text="無法解析訂單內容，請重新傳送清楚的訂單截圖或文字。",
+                text="這筆內容需要人工確認，請補充商品名稱與數量，或請店家協助確認。",
                 reply_token=reply_token,
             )
         return
 
-    # 綁下單客戶（依 LINE userId）
+    # 只有完成所有防禦檢查後才建立客戶資料與訂單。
     customer = _get_or_create_customer(db, store.id, user_id, result.customer_name)
 
-    # WO-006 §2.4：抽取品項用店家型錄帶價（未命中 → 價格 None，team-mom 事後補）。
-    priced = product_service.price_extracted_items(db, store.id, result.items)
-
-    # 建單（單價來自型錄；未命中 unit_price_cents=None → _q_up 視為 0；
-    #       去重靠 line_event_id UNIQUE，撞則 IntegrityError）
-    principal = {"user_id": owner.id, "store_id": store.id}
+    # 建單：單價來自型錄，去重靠 line_event_id UNIQUE。
     base_extraction = result.raw or {
         "confidence_score": result.confidence_score,
         "industry_type": result.industry_type,
@@ -139,7 +172,7 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
     data = {
         "items": [
             {"product_name": p["product_name"], "quantity": p["quantity"],
-             "unit_price": p["unit_price_cents"]}  # None → 0（⛔ 無 ×100，已是整數分）
+             "unit_price": int(p["unit_price_cents"])}
             for p in priced
         ],
         "customer_id": customer.id if customer else None,
@@ -172,6 +205,120 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         )
         reply_text = "已收到您的訂單：\n{}\n\n請稍候確認。".format(item_lines)
         await notif.send_message(to=user_id, text=reply_text, reply_token=reply_token)
+
+
+async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_id: Optional[str]) -> None:
+    """未配置官方 Messaging channel 時不假裝可對客補問。"""
+    if not (
+        settings.p1_attachment_followup_enabled
+        and settings.line_messaging_access_token
+        and reply_token
+        and user_id
+    ):
+        return
+    try:
+        await notif.send_message(
+            to=user_id,
+            reply_token=reply_token,
+            text="已收到附件。為避免辨識錯誤，請直接以文字提供訂購人、商品、數量、需要時間與特別要求。",
+        )
+    except Exception:  # noqa: BLE001 - 通知不可用時保留人工覆核案例，不重試外部呼叫。
+        logger.warning("P1 attachment follow-up unavailable; retained for human review")
+
+
+async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
+    """P1：只建立受控草稿／blocked outbox，絕不建立本地一般 Order 或 Customer。"""
+    line_event_id = event.get("webhookEventId")
+    if not isinstance(line_event_id, str) or not line_event_id:
+        return
+    try:
+        store = p1_intake_service.resolve_p1_store(db)
+    except p1_intake_service.P1IntakeConfigurationError as exc:
+        logger.error("P1 intake store scope unavailable: %s", exc)
+        return
+    source_event = p1_intake_service.claim_event(db, store_id=store.id, webhook_event_id=line_event_id)
+    if source_event is None:
+        return
+
+    message = event.get("message") or {}
+    message_type = message.get("type")
+    source = event.get("source") or {}
+    source_user_id = source.get("userId")
+    reply_token = event.get("replyToken")
+    try:
+        if message_type in {"image", "audio", "file"}:
+            p1_intake_service.create_attachment_case(
+                db, store=store, source_event=source_event, media_type=message_type
+            )
+            await _safe_attachment_followup(notif, reply_token=reply_token, user_id=source_user_id)
+            p1_intake_service.finish_event(db, source_event)
+            return
+
+        text = _get_text_from_event(event)
+        if not text:
+            # 非訂單文字、貼圖、位置等事件也不會變成訂單。
+            p1_intake_service.create_text_case(
+                db,
+                store=store,
+                source_event=source_event,
+                source_text="",
+                source_user_id=source_user_id,
+                result=type("EmptyExtraction", (), {"items": [], "customer_name": None, "customer_phone": None, "confidence_score": 0.0, "provider_name": "", "raw": {}})(),
+                decision_status="needs_review",
+                decision_reasons=["unsupported_message_type"],
+            )
+            p1_intake_service.finish_event(db, source_event)
+            return
+
+        try:
+            result = await llm.extract_order(text=text, industry_type=store.industry_type or "ecom")
+        except Exception as exc:  # noqa: BLE001 - 外部解析失敗只建立人工覆核草稿。
+            reason = getattr(exc, "reason_code", None) or (
+                "provider_timeout" if isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)) else "provider_error"
+            )
+            p1_intake_service.create_text_case(
+                db,
+                store=store,
+                source_event=source_event,
+                source_text=text,
+                source_user_id=source_user_id,
+                result=type("EmptyExtraction", (), {"items": [], "customer_name": None, "customer_phone": None, "confidence_score": 0.0, "provider_name": "", "raw": {}})(),
+                decision_status="needs_review",
+                decision_reasons=[reason],
+            )
+            p1_intake_service.finish_event(db, source_event)
+            return
+
+        priced = product_service.price_extracted_items(db, store.id, result.items)
+        decision = order_risk_service.evaluate_order_extraction(
+            db,
+            extraction=result,
+            priced_items=priced,
+            default_threshold=settings.ai_confidence_threshold,
+        )
+        p1_intake_service.create_text_case(
+            db,
+            store=store,
+            source_event=source_event,
+            source_text=text,
+            source_user_id=source_user_id,
+            result=result,
+            decision_status=decision.status,
+            decision_reasons=decision.reasons,
+        )
+        p1_intake_service.finish_event(db, source_event)
+    except p1_intake_service.P1IntakeConfigurationError as exc:
+        db.rollback()
+        source_event = db.get(type(source_event), source_event.id)
+        if source_event is not None:
+            p1_intake_service.finish_event(db, source_event, error_code=str(exc))
+        logger.error("P1 intake failed closed: %s", exc)
+    except Exception:
+        db.rollback()
+        source_event = db.get(type(source_event), source_event.id)
+        if source_event is not None:
+            p1_intake_service.finish_event(db, source_event, error_code="P1_INTAKE_PROCESSING_FAILED")
+        logger.exception("P1 intake processing failed")
 
 
 async def process_webhook_event(payload: Dict[str, Any], db: Optional[Session] = None) -> None:

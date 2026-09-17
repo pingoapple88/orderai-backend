@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS stores (
   company_id INTEGER REFERENCES companies(id),            -- 0004：所屬母公司（可空）
   referred_by_dealer_id INTEGER REFERENCES dealers(id),   -- 0004：推薦經銷商（可空）
   plan VARCHAR(50) DEFAULT 'lite',                         -- 0004：方案
+  store_key VARCHAR(64) UNIQUE,                            -- W2：跨模組門店識別（非 URL Query 租戶來源）
   line_channel_id VARCHAR(64),                            -- 0004：LINE channel（secret 只在 ENV）
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -67,14 +68,16 @@ CREATE TABLE IF NOT EXISTS stores (
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS plans (
   id SERIAL PRIMARY KEY,
-  name VARCHAR(50) UNIQUE NOT NULL,
+  name VARCHAR(50) NOT NULL,
+  channel VARCHAR(20) NOT NULL DEFAULT 'direct' CHECK (channel IN ('direct', 'dealer', 'enterprise')),
   monthly_price INTEGER NOT NULL,            -- 整數分位（最小幣別單位）
   currency VARCHAR(3) DEFAULT 'TWD',
   ai_extraction_limit INTEGER,
   team_member_limit INTEGER,
   features JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_plans_name_channel UNIQUE (name, channel)
 );
 
 -- ============================================================================
@@ -102,6 +105,26 @@ CREATE INDEX IF NOT EXISTS idx_users_line_id ON users(line_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_plan_id ON users(plan_id);
 CREATE INDEX IF NOT EXISTS idx_users_store_id ON users(store_id);
+
+-- ============================================================================
+-- W2 模組自助註冊服務狀態（本輪不產生模組生命週期事件）
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS module_registrations (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  store_id INTEGER NOT NULL REFERENCES stores(id),
+  module_key VARCHAR(50) NOT NULL,
+  module_version VARCHAR(20) NOT NULL,
+  channel VARCHAR(20) NOT NULL CHECK (channel IN ('direct', 'dealer', 'enterprise')),
+  locale VARCHAR(10) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  idempotency_key VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_module_registration_idempotency UNIQUE (module_key, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_module_registrations_company_id ON module_registrations(company_id);
+CREATE INDEX IF NOT EXISTS idx_module_registrations_store_id ON module_registrations(store_id);
 
 -- ============================================================================
 -- 6. user_preferences 表（用戶偏好設定）
@@ -254,14 +277,17 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- 初始化資料
 -- ============================================================================
 -- plans 金額為整數分位（TWD：NT$390 = 39000、NT$790 = 79000）
-INSERT INTO plans (name, monthly_price, currency, ai_extraction_limit, team_member_limit, features)
+INSERT INTO plans (name, channel, monthly_price, currency, ai_extraction_limit, team_member_limit, features)
 VALUES
-  ('lite', 39000, 'TWD', 300, 1, '{"ai_extraction": true, "basic_reporting": true}'),
-  ('pro', 79000, 'TWD', -1, -1, '{"ai_extraction": true, "advanced_reporting": true, "team_collaboration": true}')
-ON CONFLICT (name) DO NOTHING;
+  ('lite', 'direct', 39000, 'TWD', 300, 1, '{"ai_extraction": true, "basic_reporting": true}'),
+  ('pro', 'direct', 79000, 'TWD', -1, -1, '{"ai_extraction": true, "advanced_reporting": true, "team_collaboration": true}')
+ON CONFLICT (name, channel) DO NOTHING;
 
 INSERT INTO system_settings (key, value, description) VALUES
   ('ai_soft_limit_pro', '10000', 'Pro 方案每月 AI 解析軟上限'),
+  ('ai_confidence_threshold', '0.85', 'AI 訂單自動建單最低信心分數'),
+  ('ai_max_items_per_order', '30', '單筆訂單允許的最大商品列數'),
+  ('ai_max_quantity_per_item', '99', '單一商品允許的最大數量'),
   ('pre_filter_regex', '(\+\s*\d+|＋\s*\d+|#下單|要買|預購|下單|訂購|\d+\s*份|\d+\s*個|\d+\s*組)', '接單意圖預檢正則；不符者略過 LLM'),
   ('polling_interval_minutes', '30', '付款未回調主動輪詢間隔（分）')
 ON CONFLICT (key) DO NOTHING;

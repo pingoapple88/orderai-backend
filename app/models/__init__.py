@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -62,6 +63,7 @@ class Store(Base):
     company_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"))
     referred_by_dealer_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("dealers.id"))
     plan: Mapped[str] = mapped_column(Text, default="lite")
+    store_key: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
     line_channel_id: Mapped[Optional[str]] = mapped_column(Text)  # ※ secret 只在 Railway ENV，DB 不碰
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
@@ -70,7 +72,8 @@ class Store(Base):
 class Plan(Base):
     __tablename__ = "plans"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False, default="direct")
     monthly_price: Mapped[int] = mapped_column(Integer, nullable=False)  # 整數分位（已合規）
     currency: Mapped[str] = mapped_column(String(3), default="TWD")
     ai_extraction_limit: Mapped[Optional[int]] = mapped_column(Integer)
@@ -78,6 +81,10 @@ class Plan(Base):
     features: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint("name", "channel", name="uq_plans_name_channel"),
+    )
 
 
 class Customer(Base):
@@ -241,6 +248,25 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
+class ModuleRegistration(Base):
+    __tablename__ = "module_registrations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    module_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    module_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    locale: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("module_key", "idempotency_key", name="uq_module_registration_idempotency"),
+    )
+
+
 class Product(Base):
     """店家自有商品型錄（WO-006）。抄單別名比對 + 自動帶價的價格來源。
 
@@ -265,6 +291,37 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (UniqueConstraint("store_id", "name", name="uq_products_store_name"),)
+
+
+class InventoryInquiry(Base):
+    """人工庫存確認工作項。
+
+    此表只記錄客戶的詢問與人員回覆，不是庫存帳、不是保留，也不會造成扣庫。
+    所有存取由 store_id 與 Store.company_id 雙鍵限制；商品與客戶關聯皆為可選快照。
+    """
+    __tablename__ = "inventory_inquiries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("stores.id"), nullable=False, index=True
+    )
+    product_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="SET NULL"), index=True
+    )
+    customer_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="SET NULL"), index=True
+    )
+    requester_name: Mapped[Optional[str]] = mapped_column(Text)
+    requested_product_name: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_quantity: Mapped[Optional[int]] = mapped_column(Integer)
+    requested_unit: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending_review")
+    decision_note: Mapped[Optional[str]] = mapped_column(Text)
+    reviewed_by_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class OrderBatch(Base):
@@ -304,8 +361,106 @@ class SystemSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
 
 
+class LineWebhookEvent(Base):
+    """P1 LINE 入站事件帳本。
+
+    原始 webhook body 不落庫；只保存驗簽後的最小控制資料與來源身分 HMAC，
+    以 (store_id, channel, webhook_event_id) 作為入列前冪等鍵。
+    """
+    __tablename__ = "line_webhook_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(30), nullable=False, default="line")
+    webhook_event_id: Mapped[str] = mapped_column(Text, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    message_type: Mapped[Optional[str]] = mapped_column(String(50))
+    message_id_hmac: Mapped[Optional[str]] = mapped_column(String(64))
+    source_user_hmac: Mapped[Optional[str]] = mapped_column(String(64))
+    occurred_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    error_code: Mapped[Optional[str]] = mapped_column(String(100))
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("store_id", "channel", "webhook_event_id", name="uq_line_webhook_events_store_channel_event"),
+        CheckConstraint("status IN ('queued', 'processing', 'processed', 'failed')", name="ck_line_webhook_events_status"),
+    )
+
+
+class IntakeConversation(Base):
+    """P1 受控對話案例；草稿內容只以 Fernet 密文保存。"""
+    __tablename__ = "intake_conversations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    source_event_id: Mapped[int] = mapped_column(Integer, ForeignKey("line_webhook_events.id"), nullable=False, unique=True)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_user_hmac: Mapped[Optional[str]] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(50), nullable=False)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    reason_codes: Mapped[Optional[dict]] = mapped_column(JSONB)
+    draft_ciphertext: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('needs_human_review', 'awaiting_customer_confirmation', 'awaiting_erp_delivery', 'closed')",
+            name="ck_intake_conversations_state",
+        ),
+    )
+
+
+class AttachmentDraft(Base):
+    """P1 圖片／音訊／檔案的受控草稿，不含附件原文或內容。"""
+    __tablename__ = "attachment_drafts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey("intake_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    message_id_hmac: Mapped[Optional[str]] = mapped_column(String(64))
+    media_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    content_sha256: Mapped[Optional[str]] = mapped_column(String(64))
+    restricted_reference: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="needs_text_confirmation")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "message_id_hmac", name="uq_attachment_drafts_conversation_message"),
+        CheckConstraint("media_type IN ('image', 'audio', 'file')", name="ck_attachment_drafts_media_type"),
+        CheckConstraint("status IN ('needs_text_confirmation', 'needs_human_review', 'withdrawn')", name="ck_attachment_drafts_status"),
+    )
+
+
+class ErpDeliveryOutbox(Base):
+    """P1 ERP 受控轉送 outbox；payload 永遠加密，預設 blocked。"""
+    __tablename__ = "erp_delivery_outbox"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey("intake_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    delivery_type: Mapped[str] = mapped_column(String(50), nullable=False, default="pending_customer_and_order")
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload_ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="blocked")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error_code: Mapped[Optional[str]] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "idempotency_key", name="uq_erp_delivery_outbox_company_idempotency"),
+        CheckConstraint("status IN ('blocked', 'queued', 'delivered', 'failed')", name="ck_erp_delivery_outbox_status"),
+    )
+
+
 __all__ = [
     "Company", "Dealer", "Store", "Plan", "Customer", "User", "UserPreference",
     "Order", "OrderItem", "BillingRecord", "AIExtraction", "AIUsageLog",
-    "AuditLog", "Product", "OrderBatch", "OrderCommit", "SystemSetting",
+    "AuditLog", "Product", "InventoryInquiry", "OrderBatch", "OrderCommit", "SystemSetting",
+    "LineWebhookEvent", "IntakeConversation", "AttachmentDraft", "ErpDeliveryOutbox",
 ]
