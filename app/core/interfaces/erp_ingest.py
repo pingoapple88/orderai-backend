@@ -48,6 +48,7 @@ class PendingCustomerRequest:
     """OrderAI 到雲鼎的待確認客戶標準化請求。"""
     company_id: int
     store_id: int
+    sales_location_id: int
     idempotency_key: str
     line_user_id: Optional[str]
     display_name: Optional[str]

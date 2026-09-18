@@ -62,7 +62,7 @@ def test_http_provider_signs_and_normalizes_pending_customer_and_order_requests(
 
     provider = _provider(handler)
     customer = PendingCustomerRequest(
-        company_id=7, store_id=3, idempotency_key="customer-0001", line_user_id="U-synthetic",
+        company_id=7, store_id=3, sales_location_id=9, idempotency_key="customer-0001", line_user_id="U-synthetic",
         display_name="合成客戶", phone="0900000000", contact_authorized=True, source_channel="line",
     )
     order = PendingConfirmationOrderRequest(
@@ -78,6 +78,7 @@ def test_http_provider_signs_and_normalizes_pending_customer_and_order_requests(
     assert customer_result.reference == "41"
     assert order_result.reference == "PCO-TEST-42"
     assert requests[0][0] == "/api/pending-customers/service/ingest"
+    assert requests[0][1]["sales_location_id"] == 9
     assert requests[0][1]["source_material_hash"] == hashlib.sha256(b"customer-0001").hexdigest()
     assert requests[1][0] == "/api/pending-confirmation-orders/service/ingest"
     assert requests[1][1]["pending_customer_id"] == 41
@@ -89,7 +90,7 @@ def test_http_provider_signs_and_normalizes_pending_customer_and_order_requests(
 def test_http_provider_rejects_error_response_without_exposing_payload():
     provider = _provider(lambda request: httpx.Response(503, json={"detail": "unavailable"}))
     request = PendingCustomerRequest(
-        company_id=7, store_id=3, idempotency_key="customer-0002", line_user_id=None,
+        company_id=7, store_id=3, sales_location_id=9, idempotency_key="customer-0002", line_user_id=None,
         display_name="合成客戶", phone=None, contact_authorized=False, source_channel="line",
     )
     try:

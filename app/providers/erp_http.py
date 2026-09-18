@@ -85,6 +85,7 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
             self._CUSTOMER_PATH,
             {
                 "company_id": request.company_id,
+                "sales_location_id": request.sales_location_id,
                 "source": "orderai_line",
                 "idempotency_key": request.idempotency_key,
                 "source_material_hash": hashlib.sha256(request.idempotency_key.encode()).hexdigest(),

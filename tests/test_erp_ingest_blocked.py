@@ -43,7 +43,7 @@ def test_submit_raises_blocked_with_reason_code():
 def test_pending_customer_and_order_also_raise_blocked():
     p = get_erp_ingest_provider()
     customer = PendingCustomerRequest(
-        company_id=1, store_id=1, idempotency_key="pc-1", line_user_id="Utest",
+        company_id=1, store_id=1, sales_location_id=1, idempotency_key="pc-1", line_user_id="Utest",
         display_name="測試客戶", phone=None, contact_authorized=True, source_channel="line",
     )
     order = PendingConfirmationOrderRequest(

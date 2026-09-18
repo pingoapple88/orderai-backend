@@ -42,7 +42,7 @@ import app.models  # noqa: F401 -- register all ORM models before create_all
 from app.main import app
 from app.models import (
     Company, Customer, InventoryLevel, Order, P1ServiceIngressReceipt,
-    PendingConfirmationOrder, PendingCustomer, Product, SalesLocation, User, Warehouse,
+    PendingConfirmationOrder, PendingCustomer, Product, SalesLocation, User, UserSalesLocationAccess, Warehouse,
 )
 
 
@@ -51,6 +51,11 @@ db = SessionLocal()
 try:
     db.add_all([
         Company(id=1, code="QINGQUAN", name="青泉谷隔離驗收租戶"),
+        User(
+            id=901, company_id=1, username="p1_uat_admin",
+            email="p1-uat-admin@isolated.invalid", password_hash="not-used",
+            role="admin", is_active=True,
+        ),
         User(
             id=903, company_id=1, username="p1_orderai_service",
             email="p1-orderai@isolated.invalid", password_hash="not-used",
@@ -61,6 +66,10 @@ try:
         SalesLocation(
             id=91, company_id=1, warehouse_id=11, code="QG-MARKET",
             name="合成取貨據點", is_active=True,
+        ),
+        UserSalesLocationAccess(
+            company_id=1, user_id=903, sales_location_id=91,
+            is_active=True, granted_by=901,
         ),
         InventoryLevel(company_id=1, product_id=101, warehouse_id=11, on_hand=10, reserved=0),
     ])
