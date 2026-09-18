@@ -80,6 +80,8 @@ def _configure_p1(monkeypatch, store_id, *, erp_product_map_json="{}"):
     monkeypatch.setattr(webhook.settings, "p1_pii_encryption_key", _FERNET_KEY)
     monkeypatch.setattr(line_worker.settings, "p1_identity_hmac_key", "p1-test-hmac")
     monkeypatch.setattr(webhook.settings, "p1_identity_hmac_key", "p1-test-hmac")
+    monkeypatch.setattr(line_worker.settings, "p1_erp_target_company_id", 77)
+    monkeypatch.setattr(webhook.settings, "p1_erp_target_company_id", 77)
     monkeypatch.setattr(line_worker.settings, "p1_erp_sales_location_id", 91)
     monkeypatch.setattr(webhook.settings, "p1_erp_sales_location_id", 91)
     monkeypatch.setattr(line_worker.settings, "p1_erp_product_id_map_json", erp_product_map_json)
@@ -201,6 +203,7 @@ def test_approved_text_creates_encrypted_p1_draft_and_blocked_outbox_not_local_o
     assert case.state == "needs_human_review"
     assert outbox.status == "blocked" and outbox.last_error_code == "ERP_CONNECTION_BLOCKED"
     customer_request, order_request = p1_intake_service.build_erp_requests_from_outbox(outbox)
+    assert customer_request.company_id == 77 and order_request.company_id == 77
     assert customer_request.line_user_id == "Up1buyer"
     assert order_request.requested_for == "2026-09-20T02:00:00+00:00"
     assert order_request.special_request is None and order_request.items[0].quantity == 2
@@ -311,3 +314,22 @@ def test_same_event_is_processed_once_without_duplicate_case_or_outbox(db_sessio
     assert db_session.execute(select(func.count(LineWebhookEvent.id))).scalar_one() == 1
     assert db_session.execute(select(func.count(IntakeConversation.id))).scalar_one() == 1
     assert db_session.execute(select(func.count(ErpDeliveryOutbox.id))).scalar_one() == 1
+
+
+
+def test_missing_erp_target_company_stays_human_review_without_outbox(db_session, monkeypatch):
+    _, store = _seed(db_session)
+    product_id = db_session.execute(select(Product.id)).scalar_one()
+    _configure_p1(monkeypatch, store.id, erp_product_map_json=json.dumps({str(product_id): 101}))
+    monkeypatch.setattr(p1_intake_service.settings, "p1_erp_target_company_id", 0)
+    payload = _payload(_event(event_id="erp-target-company-unmapped"))
+    _record(db_session, store, payload)
+    _install_worker(monkeypatch, _FakeLLM(_result()), store.id)
+    _run(payload, db_session)
+
+    case = db_session.execute(select(IntakeConversation)).scalar_one()
+    assert case.state == "needs_human_review"
+    assert "erp_target_company_unmapped" in (case.reason_codes or {}).get("codes", [])
+    assert db_session.execute(select(func.count(ErpDeliveryOutbox.id))).scalar_one() == 0
+    assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 0
+    assert db_session.execute(select(func.count(Order.id))).scalar_one() == 0
