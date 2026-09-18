@@ -1,0 +1,38 @@
+{
+  "fixture_version": "jiezhou-pending-order-synthetic-v1",
+  "contract_status": "[TODO: 待人工確認]",
+  "mapping_config": {
+    "tenant_id": 41001,
+    "company_id": 42001,
+    "sales_location_id": 43001,
+    "product_mapping": {
+      "synthetic-product-a": "jiezhou-product-a"
+    },
+    "contract_reference": "jiezhou-synthetic-contract-v1"
+  },
+  "intent": {
+    "tenant_id": 41001,
+    "company_id": 42001,
+    "sales_location_id": 43001,
+    "source_event_id": "synthetic-event-0001",
+    "content": {
+      "buyer_name": "Synthetic Buyer",
+      "buyer_contact_reference": "audit-ref:synthetic-contact-0001",
+      "requested_for": "2026-10-01T08:00:00+00:00",
+      "special_request": "synthetic-only",
+      "items": [
+        {
+          "source_product_key": "synthetic-product-a",
+          "product_name": "Synthetic Product A",
+          "quantity": 2,
+          "unit": "unit"
+        }
+      ]
+    },
+    "product_mapping": {
+      "synthetic-product-a": "jiezhou-product-a"
+    },
+    "idempotency_key": "jiezhou-synthetic-idempotency-0001",
+    "audit_reference": "audit-ref:synthetic-case-0001"
+  }
+}
