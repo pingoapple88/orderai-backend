@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cryptography.fernet import Fernet
@@ -22,6 +23,9 @@ settings = get_settings()
 
 _UNRESOLVED_STATUSES = ("queued", "processing", "failed")
 _BLOCKED_ERP_PROVIDERS = {"", "blocked"}
+# One week is the longest operationally useful manual-review visibility window.
+# Wider values would hide a stuck claim for too long, while zero and negatives are unsafe.
+_MAX_PROCESSING_STALE_AFTER_SECONDS = 7 * 24 * 60 * 60
 
 
 def _fernet_key_check() -> tuple[bool, str | None]:
@@ -54,6 +58,22 @@ def _identity_hmac_key_check() -> tuple[bool, str | None]:
     except (TypeError, ValueError, UnicodeEncodeError):
         return False, "P1_IDENTITY_HMAC_KEY_INVALID"
     return True, None
+
+
+def _processing_stale_after_seconds() -> tuple[int | None, str | None]:
+    """Read a bounded positive stale-processing threshold without exposing its value."""
+    raw_value = settings.p1_processing_stale_after_seconds
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return None, "P1_PROCESSING_STALE_AFTER_SECONDS_MISSING"
+
+    value = raw_value.strip()
+    if not value.isascii() or not value.isdecimal():
+        return None, "P1_PROCESSING_STALE_AFTER_SECONDS_INVALID"
+
+    seconds = int(value)
+    if not 1 <= seconds <= _MAX_PROCESSING_STALE_AFTER_SECONDS:
+        return None, "P1_PROCESSING_STALE_AFTER_SECONDS_INVALID"
+    return seconds, None
 
 
 def _queue_provider_check() -> tuple[bool, str | None]:
@@ -114,6 +134,36 @@ def _unresolved_event_counts(db: Session, *, store_id: int, company_id: int) -> 
     return counts
 
 
+def _stale_processing_count(
+    db: Session, *, store_id: int, company_id: int, stale_after_seconds: int
+) -> int:
+    """Count stale processing claims within the authorized company and store only.
+
+    This is a UTC, aggregate-only SELECT. It intentionally neither changes event
+    state nor asks the queue to retry/rearm a claim.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
+    return int(
+        db.execute(
+            select(func.count(LineWebhookEvent.id))
+            .join(
+                Store,
+                (Store.id == LineWebhookEvent.store_id)
+                & (Store.company_id == LineWebhookEvent.company_id),
+            )
+            .where(
+                LineWebhookEvent.store_id == store_id,
+                LineWebhookEvent.company_id == company_id,
+                Store.id == store_id,
+                Store.company_id == company_id,
+                LineWebhookEvent.status == "processing",
+                LineWebhookEvent.claimed_at.is_not(None),
+                LineWebhookEvent.claimed_at < cutoff,
+            )
+        ).scalar_one()
+    )
+
+
 def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
     """Evaluate P1 readiness without changing database, queue, or delivery state.
 
@@ -140,6 +190,10 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
     if hmac_reason:
         reason_codes.append(hmac_reason)
 
+    stale_after_seconds, stale_threshold_reason = _processing_stale_after_seconds()
+    if stale_threshold_reason:
+        reason_codes.append(stale_threshold_reason)
+
     queue_provider_available, queue_reason = _queue_provider_check()
     if queue_reason:
         reason_codes.append(queue_reason)
@@ -149,10 +203,21 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
         reason_codes.append(erp_reason)
 
     unresolved_event_counts = {status: 0 for status in _UNRESOLVED_STATUSES}
+    stale_processing_count = 0
     if company_id is not None:
         unresolved_event_counts = _unresolved_event_counts(
             db, store_id=store_id, company_id=company_id
         )
+        if stale_after_seconds is not None:
+            stale_processing_count = _stale_processing_count(
+                db,
+                store_id=store_id,
+                company_id=company_id,
+                stale_after_seconds=stale_after_seconds,
+            )
+    has_stale_processing = stale_processing_count > 0
+    if has_stale_processing:
+        reason_codes.append("P1_STALE_PROCESSING_EVENTS")
 
     checks_ready = all(
         (
@@ -160,8 +225,10 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
             scope_resolved,
             encryption_key_valid,
             identity_hmac_key_valid,
+            stale_after_seconds is not None,
             queue_provider_available,
             erp_delivery_blocked,
+            not has_stale_processing,
         )
     )
     production_incomplete = settings.environment.strip().lower() == "production" and not checks_ready
@@ -179,5 +246,7 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
             "erp_delivery_blocked": erp_delivery_blocked,
         },
         "unresolved_event_counts": unresolved_event_counts,
+        "stale_processing_count": stale_processing_count,
+        "has_stale_processing": has_stale_processing,
         "reason_codes": sorted(set(reason_codes)),
     }

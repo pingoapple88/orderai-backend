@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,6 +37,7 @@ def _configure_safe_p1(monkeypatch):
         "p1_identity_hmac_key",
         "p1-readiness-test-hmac-key-material-32b",
     )
+    monkeypatch.setattr(p1_readiness_service.settings, "p1_processing_stale_after_seconds", "300")
     monkeypatch.setattr(p1_readiness_service.settings, "p1_erp_ingest_provider", "blocked")
     monkeypatch.setattr(p1_readiness_service.settings, "p1_isolated_delivery_enabled", False)
     monkeypatch.setattr(p1_readiness_service.settings, "p1_uat_delivery_enabled", False)
@@ -73,7 +75,9 @@ def _seed_scopes(db_session):
     return user, company_a, store_a, company_b, store_b
 
 
-def _event(*, company_id, store_id, event_id, status, hmac_value="db-hmac-private"):
+def _event(
+    *, company_id, store_id, event_id, status, hmac_value="db-hmac-private", claimed_at=None
+):
     return LineWebhookEvent(
         company_id=company_id,
         store_id=store_id,
@@ -84,6 +88,7 @@ def _event(*, company_id, store_id, event_id, status, hmac_value="db-hmac-privat
         message_id_hmac=hmac_value,
         source_user_hmac=hmac_value,
         status=status,
+        claimed_at=claimed_at,
     )
 
 
@@ -150,6 +155,8 @@ def test_p1_readiness_api_returns_scoped_safe_counts_without_side_effects(db_ses
                 "erpDeliveryBlocked": True,
             },
             "unresolvedEventCounts": {"queued": 1, "processing": 1, "failed": 1},
+            "staleProcessingCount": 0,
+            "hasStaleProcessing": False,
             "reasonCodes": [],
         }
         serialized = str(response.json())
@@ -280,5 +287,156 @@ def test_p1_readiness_reports_invalid_fernet_and_unavailable_queue_without_netwo
             "P1_PII_ENCRYPTION_KEY_INVALID",
             "P1_QUEUE_PROVIDER_UNAVAILABLE",
         ]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_p1_readiness_reports_only_scoped_stale_processing_without_retrying(db_session, monkeypatch):
+    user, company_a, store_a, company_b, store_b = _seed_scopes(db_session)
+    _configure_safe_p1(monkeypatch)
+    monkeypatch.setattr(p1_readiness_service.settings, "p1_processing_stale_after_seconds", "60")
+    monkeypatch.setattr(p1_readiness_service.providers, "get_queue_for_readiness", _NoSideEffectQueue)
+    same_company_other_store = Store(
+        name="P1 readiness store A alternate",
+        company_id=company_a.id,
+        market="tw",
+    )
+    db_session.add(same_company_other_store)
+    db_session.flush()
+    now = datetime.now(timezone.utc)
+    stale_local = _event(
+        company_id=company_a.id,
+        store_id=store_a.id,
+        event_id="local-stale-private",
+        status="processing",
+        hmac_value="local-stale-hmac-private",
+        claimed_at=now - timedelta(seconds=61),
+    )
+    fresh_local = _event(
+        company_id=company_a.id,
+        store_id=store_a.id,
+        event_id="local-fresh-private",
+        status="processing",
+        hmac_value="local-fresh-hmac-private",
+        claimed_at=now - timedelta(seconds=59),
+    )
+    stale_same_company_other_store = _event(
+        company_id=company_a.id,
+        store_id=same_company_other_store.id,
+        event_id="same-company-other-store-stale-private",
+        status="processing",
+        hmac_value="same-company-other-store-stale-hmac-private",
+        claimed_at=now - timedelta(days=1),
+    )
+    stale_other_store = _event(
+        company_id=company_b.id,
+        store_id=store_b.id,
+        event_id="other-stale-private",
+        status="processing",
+        hmac_value="other-stale-hmac-private",
+        claimed_at=now - timedelta(days=1),
+    )
+    db_session.add_all([
+        stale_local,
+        fresh_local,
+        stale_same_company_other_store,
+        stale_other_store,
+    ])
+    db_session.commit()
+    before_events = [
+        (row.id, row.status, row.error_code, row.claimed_at, row.processed_at)
+        for row in db_session.execute(select(LineWebhookEvent).order_by(LineWebhookEvent.id)).scalars()
+    ]
+    before_audits = db_session.execute(select(func.count(AuditLog.id))).scalar_one()
+    app = _api_client(db_session)
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/v1/stores/{store_a.id}/p1-intake/readiness",
+                headers=_headers(user.id, store_a.id),
+            )
+        assert response.status_code == 200, response.text
+        data = response.json()["data"]
+        assert data["ready"] is False
+        assert data["staleProcessingCount"] == 1
+        assert data["hasStaleProcessing"] is True
+        assert data["reasonCodes"] == ["P1_STALE_PROCESSING_EVENTS"]
+        serialized = str(response.json())
+        for forbidden in (
+            "local-stale-private",
+            "local-fresh-private",
+            "same-company-other-store-stale-private",
+            "other-stale-private",
+            "local-stale-hmac-private",
+            "local-fresh-hmac-private",
+            "same-company-other-store-stale-hmac-private",
+            "other-stale-hmac-private",
+            str(stale_local.claimed_at),
+        ):
+            assert forbidden not in serialized
+        assert set(data) == {
+            "ready",
+            "checks",
+            "unresolvedEventCounts",
+            "staleProcessingCount",
+            "hasStaleProcessing",
+            "reasonCodes",
+        }
+        assert [
+            (row.id, row.status, row.error_code, row.claimed_at, row.processed_at)
+            for row in db_session.execute(select(LineWebhookEvent).order_by(LineWebhookEvent.id)).scalars()
+        ] == before_events
+        assert db_session.execute(select(func.count(AuditLog.id))).scalar_one() == before_audits
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize(
+    "threshold, reason_code",
+    [
+        ("", "P1_PROCESSING_STALE_AFTER_SECONDS_MISSING"),
+        ("0", "P1_PROCESSING_STALE_AFTER_SECONDS_INVALID"),
+        ("604801", "P1_PROCESSING_STALE_AFTER_SECONDS_INVALID"),
+        ("not-a-number", "P1_PROCESSING_STALE_AFTER_SECONDS_INVALID"),
+    ],
+)
+def test_p1_readiness_fails_closed_for_missing_or_invalid_stale_threshold(db_session, monkeypatch, threshold, reason_code):
+    user, company_a, store_a, _, _ = _seed_scopes(db_session)
+    _configure_safe_p1(monkeypatch)
+    monkeypatch.setattr(p1_readiness_service.settings, "p1_processing_stale_after_seconds", threshold)
+    monkeypatch.setattr(p1_readiness_service.providers, "get_queue_for_readiness", _NoSideEffectQueue)
+    db_session.add(_event(
+        company_id=company_a.id,
+        store_id=store_a.id,
+        event_id="threshold-private-event",
+        status="processing",
+        hmac_value="threshold-private-hmac",
+        claimed_at=datetime.now(timezone.utc) - timedelta(days=1),
+    ))
+    db_session.commit()
+    before_events = [
+        (row.id, row.status, row.error_code, row.claimed_at, row.processed_at)
+        for row in db_session.execute(select(LineWebhookEvent).order_by(LineWebhookEvent.id)).scalars()
+    ]
+    app = _api_client(db_session)
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/v1/stores/{store_a.id}/p1-intake/readiness",
+                headers=_headers(user.id, store_a.id),
+            )
+        assert response.status_code == 200, response.text
+        data = response.json()["data"]
+        assert data["ready"] is False
+        assert data["staleProcessingCount"] == 0
+        assert data["hasStaleProcessing"] is False
+        assert data["reasonCodes"] == [reason_code]
+        assert "processingStaleAfterSeconds" not in data
+        if threshold and not threshold.isdecimal():
+            assert threshold not in str(response.json())
+        assert [
+            (row.id, row.status, row.error_code, row.claimed_at, row.processed_at)
+            for row in db_session.execute(select(LineWebhookEvent).order_by(LineWebhookEvent.id)).scalars()
+        ] == before_events
     finally:
         app.dependency_overrides.clear()

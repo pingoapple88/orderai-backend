@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     p1_intake_enabled: bool = False
     p1_pii_encryption_key: str = ""
     p1_identity_hmac_key: str = ""
+    # 必須由部署環境提供合理正整數；readiness 在執行時 fail-closed 驗證，
+    # 不可為缺失或非法值建立隱性預設，以免掩蓋卡住的 processing 事件。
+    p1_processing_stale_after_seconds: str = ""
     p1_attachment_followup_enabled: bool = False
     p1_attachment_max_bytes: int = 10_000_000
     p1_internal_relay_line_user_ids: str = ""
