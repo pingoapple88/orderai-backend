@@ -210,8 +210,15 @@ class IErpIngestProvider(ABC):
     ) -> ErpIngestResult:
         """建立既有待確認訂單；不得帶付款、保留或扣庫副作用。"""
 
-    @abstractmethod
     async def submit_pending_confirmation_intent(
         self, request: PendingOrderIntent
     ) -> ErpIngestResult:
-        """提交 provider-neutral 待確認意圖；未知契約一律 fail-closed。"""
+        """提交 provider-neutral 待確認意圖；預設 fail-closed。
+
+        此延伸方法不可成為既有第三方 provider 的建構期破壞性變更。未選擇
+        實作捷州 provider-neutral 契約的 adapter 一律拒絕，不得猜測轉譯或送件。
+        """
+        raise ErpIngestBlockedError(
+            "ERP_CONTRACT_MISMATCH",
+            "此 ERP Adapter 未實作 provider-neutral 待確認意圖；不得轉譯或送件。",
+        )
