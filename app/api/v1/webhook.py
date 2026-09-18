@@ -7,6 +7,7 @@ endpoint fails closed.
 from __future__ import annotations
 
 import json
+import logging
 
 from fastapi import APIRouter, Request, Response
 
@@ -18,6 +19,7 @@ from app.services import p1_intake_service
 
 router = APIRouter()
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/line")
@@ -41,17 +43,23 @@ async def line_webhook(request: Request) -> Response:
 
     db = SessionLocal()
     try:
-        store = p1_intake_service.resolve_p1_store(db)
-        inserted = p1_intake_service.record_line_events(db, payload, store)
-    except p1_intake_service.P1IntakeConfigurationError:
-        db.rollback()
-        return Response(status_code=503)
+        try:
+            store = p1_intake_service.resolve_p1_store(db)
+            inserted = p1_intake_service.record_line_events(db, payload, store)
+        except p1_intake_service.P1IntakeConfigurationError:
+            db.rollback()
+            return Response(status_code=503)
+
+        # Redeliveries already accepted or processed are ACKed without another job.
+        if not inserted:
+            return Response(status_code=200)
+
+        try:
+            get_queue().enqueue(payload)
+        except Exception:  # noqa: BLE001 - preserve ledger state so LINE redelivery can recover.
+            p1_intake_service.mark_enqueue_failed(db, inserted)
+            logger.exception("P1 queue enqueue failed; signed events remain recoverable")
+            return Response(status_code=503)
+        return Response(status_code=200)
     finally:
         db.close()
-
-    # Redeliveries are ACKed but do not enqueue another worker job.
-    if not inserted:
-        return Response(status_code=200)
-
-    get_queue().enqueue(payload)
-    return Response(status_code=200)

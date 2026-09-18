@@ -94,7 +94,12 @@ def resolve_p1_store(db: Session) -> Store:
 
 
 def record_line_events(db: Session, payload: dict[str, Any], store: Store) -> list[int]:
-    """驗簽後、入列前寫入最小事件帳本；UNIQUE 撞到代表重送，直接略過。"""
+    """驗簽後寫入事件帳本，並回傳本次需要排入 worker 的事件 ID。
+
+    已成功排入或已處理的重送不會再次入列。若前一次 queue enqueue
+    明確失敗，事件會以既有合法狀態 ``failed`` 及專用錯誤碼保存，由 LINE
+    官方重送重新武裝為 ``queued``；worker claim 仍是最後一道去重保護。
+    """
     if store.company_id is None:
         raise P1IntakeConfigurationError("P1_COMPANY_SCOPE_MISSING")
     # P1 一經啟用，即使當次事件沒有可識別欄位，也不能在缺少金鑰的狀態下
@@ -128,10 +133,37 @@ def record_line_events(db: Session, payload: dict[str, Any], store: Store) -> li
                 db.flush()
                 inserted.append(row.id)
         except IntegrityError:
-            # 事件 ID 已存在：LINE 重送或亂序回放，不再重複入列。
-            continue
+            existing = db.execute(
+                select(LineWebhookEvent).where(
+                    LineWebhookEvent.store_id == store.id,
+                    LineWebhookEvent.channel == "line",
+                    LineWebhookEvent.webhook_event_id == event_id,
+                )
+            ).scalar_one_or_none()
+            if (
+                existing is not None
+                and existing.status == "failed"
+                and existing.error_code == "P1_QUEUE_ENQUEUE_FAILED"
+            ):
+                existing.status = "queued"
+                existing.error_code = None
+                inserted.append(existing.id)
     db.commit()
     return inserted
+
+
+def mark_enqueue_failed(db: Session, event_ids: list[int]) -> None:
+    """將本次未能排入 worker 的事件標記為可由官方重送恢復。"""
+    if not event_ids:
+        return
+    rows = db.execute(
+        select(LineWebhookEvent).where(LineWebhookEvent.id.in_(event_ids)).with_for_update()
+    ).scalars().all()
+    for row in rows:
+        if row.status == "queued":
+            row.status = "failed"
+            row.error_code = "P1_QUEUE_ENQUEUE_FAILED"
+    db.commit()
 
 
 def claim_event(db: Session, *, store_id: int, webhook_event_id: str) -> Optional[LineWebhookEvent]:

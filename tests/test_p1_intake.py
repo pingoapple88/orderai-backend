@@ -151,6 +151,50 @@ def test_signed_webhook_creates_ledger_once_then_enqueues_once(db_session, monke
     assert queue.depth() == 1
 
 
+def test_signed_webhook_queue_failure_is_recoverable_by_official_redelivery(db_session, monkeypatch):
+    _, store = _seed(db_session)
+    _configure_p1(monkeypatch, store.id)
+    monkeypatch.setattr(webhook.settings, "line_messaging_channel_secret", "test-secret")
+    Session = sessionmaker(bind=db_session.get_bind(), autoflush=False, autocommit=False, future=True)
+    monkeypatch.setattr(webhook, "SessionLocal", Session)
+
+    class FlakyQueue(InMemoryQueue):
+        def __init__(self):
+            super().__init__()
+            self.failed_once = False
+
+        def enqueue(self, payload):
+            if not self.failed_once:
+                self.failed_once = True
+                raise RuntimeError("synthetic queue outage")
+            super().enqueue(payload)
+
+    queue = FlakyQueue()
+    providers.set_queue(queue)
+    body = json.dumps(_payload(_event(event_id="queue-recovery-001"))).encode()
+    headers = {"X-Line-Signature": _signature(body, "test-secret"), "Content-Type": "application/json"}
+    from app.main import app
+    client = TestClient(app)
+
+    first = client.post("/api/v1/webhooks/line", content=body, headers=headers)
+    row = db_session.execute(
+        select(LineWebhookEvent).where(LineWebhookEvent.webhook_event_id == "queue-recovery-001")
+    ).scalar_one()
+    db_session.refresh(row)
+    assert first.status_code == 503
+    assert row.status == "failed"
+    assert row.error_code == "P1_QUEUE_ENQUEUE_FAILED"
+    assert queue.depth() == 0
+
+    redelivery = client.post("/api/v1/webhooks/line", content=body, headers=headers)
+    db_session.refresh(row)
+    assert redelivery.status_code == 200
+    assert row.status == "queued"
+    assert row.error_code is None
+    assert queue.depth() == 1
+    assert db_session.execute(select(func.count(LineWebhookEvent.id))).scalar_one() == 1
+
+
 def test_invalid_signature_creates_no_p1_ledger_or_queue(db_session, monkeypatch):
     _, store = _seed(db_session)
     _configure_p1(monkeypatch, store.id)
