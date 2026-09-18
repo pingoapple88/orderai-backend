@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     p1_attachment_followup_enabled: bool = False
     p1_attachment_max_bytes: int = 10_000_000
     p1_internal_relay_line_user_ids: str = ""
+    # OrderAI 與雲鼎各自擁有內部 company_id，絕不可假定數字相同。
+    # 0 = 未設定，P1 維持人工覆核且不建立 ERP outbox。
+    p1_erp_target_company_id: int = 0
     p1_erp_sales_location_id: int = 0
     # JSON object: {"<OrderAI local product id>": <ERP product id>}。
     # 未設定或無效 mapping 時 P1 必須維持人工覆核，絕不可猜測 ERP 商品。

@@ -358,6 +358,7 @@ def create_text_case(
     requested_for, schedule_reason = _normalize_requested_for(requested_for_raw)
     special_request = raw.get("special_request") if "special_request" in raw else raw.get("specialRequest")
     erp_items, product_reasons = _resolve_erp_items(db, store=store, result=result)
+    erp_target_company_id = settings.p1_erp_target_company_id
     reasons = list(decision_reasons) + _required_field_reasons(
         source_user_id=source_user_id,
         is_internal_relay=is_internal_relay,
@@ -365,9 +366,16 @@ def create_text_case(
         requested_for=requested_for_raw,
         raw=raw,
     ) + product_reasons + ([schedule_reason] if schedule_reason else [])
-    deliverable = decision_status == "approved" and not reasons and settings.p1_erp_sales_location_id > 0
+    deliverable = (
+        decision_status == "approved"
+        and not reasons
+        and settings.p1_erp_sales_location_id > 0
+        and erp_target_company_id > 0
+    )
     if decision_status == "approved" and settings.p1_erp_sales_location_id <= 0:
         reasons.append("erp_sales_location_unmapped")
+    if decision_status == "approved" and erp_target_company_id <= 0:
+        reasons.append("erp_target_company_unmapped")
     # 即使解析完整，仍須先取得客戶文字確認並由人員覆核；不得由 worker 自動交付 ERP。
     state = "needs_human_review"
     payload = _draft_payload(
@@ -401,7 +409,7 @@ def create_text_case(
     )
     if deliverable:
         customer_request = PendingCustomerRequest(
-            company_id=store.company_id,
+            company_id=erp_target_company_id,
             store_id=store.id,
             sales_location_id=settings.p1_erp_sales_location_id,
             idempotency_key=f"p1-customer:{store.company_id}:{source_event.webhook_event_id}",
@@ -412,7 +420,7 @@ def create_text_case(
             source_channel="line",
         )
         order_request = PendingConfirmationOrderRequest(
-            company_id=store.company_id,
+            company_id=erp_target_company_id,
             store_id=store.id,
             sales_location_id=settings.p1_erp_sales_location_id,
             idempotency_key=f"p1-order:{store.company_id}:{source_event.webhook_event_id}",
