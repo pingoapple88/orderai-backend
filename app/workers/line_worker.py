@@ -78,7 +78,7 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 db, store=store, source_event=source_event, media_type=message_type
             )
             await _safe_attachment_followup(notif, reply_token=reply_token, user_id=source_user_id)
-            p1_intake_service.finish_event(db, source_event)
+            p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
         text = _get_text_from_event(event)
@@ -105,7 +105,7 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 decision_status="needs_review",
                 decision_reasons=["unsupported_message_type"],
             )
-            p1_intake_service.finish_event(db, source_event)
+            p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
         try:
@@ -137,7 +137,7 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 decision_status="needs_review",
                 decision_reasons=[reason],
             )
-            p1_intake_service.finish_event(db, source_event)
+            p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
         priced = product_service.price_extracted_items(db, store.id, result.items)
@@ -157,18 +157,25 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
             decision_status=decision.status,
             decision_reasons=decision.reasons,
         )
-        p1_intake_service.finish_event(db, source_event)
+        p1_intake_service.finish_event(db, source_event, store_id=store.id)
     except p1_intake_service.P1IntakeConfigurationError as exc:
         db.rollback()
         source_event = db.get(type(source_event), source_event.id)
         if source_event is not None:
-            p1_intake_service.finish_event(db, source_event, error_code=str(exc))
+            p1_intake_service.finish_event(
+                db, source_event, store_id=store.id, error_code=str(exc)
+            )
         logger.error("P1 intake failed closed: %s", exc)
     except Exception:
         db.rollback()
         source_event = db.get(type(source_event), source_event.id)
         if source_event is not None:
-            p1_intake_service.finish_event(db, source_event, error_code="P1_INTAKE_PROCESSING_FAILED")
+            p1_intake_service.finish_event(
+                db,
+                source_event,
+                store_id=store.id,
+                error_code="P1_INTAKE_PROCESSING_FAILED",
+            )
         logger.exception("P1 intake processing failed")
 
 

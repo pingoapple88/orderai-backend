@@ -12,6 +12,7 @@ import json
 import threading
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
@@ -469,5 +470,206 @@ def test_missing_erp_target_company_stays_human_review_without_outbox(db_session
     assert case.state == "needs_human_review"
     assert "erp_target_company_unmapped" in (case.reason_codes or {}).get("codes", [])
     assert db_session.execute(select(func.count(ErpDeliveryOutbox.id))).scalar_one() == 0
+    assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 0
+    assert db_session.execute(select(func.count(Order.id))).scalar_one() == 0
+
+
+def _line_lifecycle_audits(db):
+    return list(
+        db.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.resource_type == "line_webhook_event",
+                AuditLog.action.like("p1.line_webhook_event.%"),
+            )
+            .order_by(AuditLog.id)
+        ).scalars()
+    )
+
+
+def _raise_after_audit(monkeypatch):
+    original = p1_intake_service._append_line_event_transition_audit
+
+    def fail_after_append(*args, **kwargs):
+        original(*args, **kwargs)
+        raise RuntimeError("synthetic audit persistence failure")
+
+    monkeypatch.setattr(p1_intake_service, "_append_line_event_transition_audit", fail_after_append)
+
+
+def test_line_event_lifecycle_audits_are_safe_append_only_and_atomic(db_session, monkeypatch):
+    """Each requested transition commits its ledger status and audit together.
+
+    A synthetic failure after the audit row is staged must roll back both rows;
+    this uses the real PostgreSQL fixture rather than a SQLite approximation.
+    """
+    company, store = _seed(db_session)
+    _configure_p1(monkeypatch, store.id)
+    event_id = "audit-lifecycle-001"
+    payload = _payload(_event(event_id=event_id, user_id="U-audit-buyer"))
+    assert _record(db_session, store, payload)
+    ledger = db_session.execute(
+        select(LineWebhookEvent).where(LineWebhookEvent.webhook_event_id == event_id)
+    ).scalar_one()
+
+    # queued -> failed (queue_failed): a staged audit failure rolls back both.
+    with monkeypatch.context() as patch:
+        _raise_after_audit(patch)
+        with pytest.raises(RuntimeError, match="synthetic audit persistence failure"):
+            p1_intake_service.mark_enqueue_failed(db_session, store_id=store.id, event_ids=[ledger.id])
+    db_session.refresh(ledger)
+    assert ledger.status == "queued"
+    assert _line_lifecycle_audits(db_session) == []
+
+    p1_intake_service.mark_enqueue_failed(db_session, store_id=store.id, event_ids=[ledger.id])
+    db_session.refresh(ledger)
+    assert ledger.status == "failed" and ledger.error_code == "P1_QUEUE_ENQUEUE_FAILED"
+
+    # failed -> queued (queue_rearmed) is allowed only for the queue failure code.
+    with monkeypatch.context() as patch:
+        _raise_after_audit(patch)
+        with pytest.raises(RuntimeError, match="synthetic audit persistence failure"):
+            p1_intake_service.record_line_events(db_session, payload, store)
+    db_session.refresh(ledger)
+    assert ledger.status == "failed"
+    assert len(_line_lifecycle_audits(db_session)) == 1
+
+    assert p1_intake_service.record_line_events(db_session, payload, store) == [ledger.id]
+    db_session.refresh(ledger)
+    assert ledger.status == "queued" and ledger.error_code is None
+
+    # queued -> processing (claim) is not partially committed when auditing fails.
+    with monkeypatch.context() as patch:
+        _raise_after_audit(patch)
+        with pytest.raises(RuntimeError, match="synthetic audit persistence failure"):
+            p1_intake_service.claim_event(db_session, store_id=store.id, webhook_event_id=event_id)
+    db_session.refresh(ledger)
+    assert ledger.status == "queued" and ledger.claimed_at is None
+    assert len(_line_lifecycle_audits(db_session)) == 2
+
+    claimed = p1_intake_service.claim_event(db_session, store_id=store.id, webhook_event_id=event_id)
+    assert claimed is not None and claimed.status == "processing"
+
+    # processing -> processed is equally atomic.
+    with monkeypatch.context() as patch:
+        _raise_after_audit(patch)
+        with pytest.raises(RuntimeError, match="synthetic audit persistence failure"):
+            p1_intake_service.finish_event(db_session, claimed, store_id=store.id)
+    db_session.refresh(ledger)
+    assert ledger.status == "processing" and ledger.processed_at is None
+    assert len(_line_lifecycle_audits(db_session)) == 3
+
+    finished = p1_intake_service.finish_event(db_session, ledger, store_id=store.id)
+    assert finished is not None and finished.status == "processed"
+
+    # A normal processing failure is never rearmed by redelivery or retried.
+    failed_event_id = "audit-lifecycle-failed-001"
+    failed_payload = _payload(_event(event_id=failed_event_id))
+    _record(db_session, store, failed_payload)
+    failed_ledger = p1_intake_service.claim_event(
+        db_session, store_id=store.id, webhook_event_id=failed_event_id
+    )
+    assert failed_ledger is not None
+    with monkeypatch.context() as patch:
+        _raise_after_audit(patch)
+        with pytest.raises(RuntimeError, match="synthetic audit persistence failure"):
+            p1_intake_service.finish_event(
+                db_session,
+                failed_ledger,
+                store_id=store.id,
+                error_code="P1_INTAKE_PROCESSING_FAILED",
+            )
+    db_session.refresh(failed_ledger)
+    assert failed_ledger.status == "processing"
+
+    failed = p1_intake_service.finish_event(
+        db_session,
+        failed_ledger,
+        store_id=store.id,
+        error_code="P1_INTAKE_PROCESSING_FAILED",
+    )
+    assert failed is not None and failed.status == "failed"
+    assert p1_intake_service.record_line_events(db_session, failed_payload, store) == []
+    db_session.refresh(failed_ledger)
+    assert failed_ledger.status == "failed"
+
+    audits = _line_lifecycle_audits(db_session)
+    assert [audit.action for audit in audits] == [
+        "p1.line_webhook_event.queue_failed",
+        "p1.line_webhook_event.queue_rearmed",
+        "p1.line_webhook_event.claimed",
+        "p1.line_webhook_event.finished",
+        "p1.line_webhook_event.claimed",
+        "p1.line_webhook_event.finished",
+    ]
+    assert [audit.new_value["status"] for audit in audits] == [
+        "failed", "queued", "processing", "processed", "processing", "failed",
+    ]
+    assert [audit.new_value["reason_code"] for audit in audits] == [
+        "P1_QUEUE_ENQUEUE_FAILED", "P1_QUEUE_ENQUEUE_FAILED", None, None, None,
+        "P1_INTAKE_PROCESSING_FAILED",
+    ]
+    expected_hashes = [
+        hashlib.sha256(event_id.encode()).hexdigest(),
+        hashlib.sha256(event_id.encode()).hexdigest(),
+        hashlib.sha256(event_id.encode()).hexdigest(),
+        hashlib.sha256(event_id.encode()).hexdigest(),
+        hashlib.sha256(failed_event_id.encode()).hexdigest(),
+        hashlib.sha256(failed_event_id.encode()).hexdigest(),
+    ]
+    assert [audit.new_value["webhook_event_id_sha256"] for audit in audits] == expected_hashes
+    for audit in audits:
+        assert audit.user_id is None and audit.old_value is None
+        assert set(audit.new_value) == {
+            "company_id", "status", "reason_code", "webhook_event_id_sha256",
+        }
+        assert audit.new_value["company_id"] == company.id
+    serialized = json.dumps([audit.new_value for audit in audits], ensure_ascii=False)
+    assert event_id not in serialized
+    assert failed_event_id not in serialized
+    assert "U-audit-buyer" not in serialized
+    assert ledger.message_id_hmac not in serialized
+    assert ledger.source_user_hmac not in serialized
+    assert "p1-test-hmac" not in serialized
+    assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 0
+    assert db_session.execute(select(func.count(Order.id))).scalar_one() == 0
+
+
+def test_line_event_lifecycle_store_scope_blocks_cross_store_access(db_session, monkeypatch):
+    company, store = _seed(db_session)
+    other_company = Company(name="另一間合成公司")
+    db_session.add(other_company)
+    db_session.flush()
+    other_store = Store(
+        name="另一間合成店",
+        company_id=other_company.id,
+        industry_type="ecom",
+        market="tw",
+    )
+    db_session.add(other_store)
+    db_session.commit()
+    _configure_p1(monkeypatch, store.id)
+
+    event_id = "audit-cross-store-001"
+    _record(db_session, store, _payload(_event(event_id=event_id)))
+    ledger = db_session.execute(
+        select(LineWebhookEvent).where(LineWebhookEvent.webhook_event_id == event_id)
+    ).scalar_one()
+
+    # A foreign store cannot mark, claim, finish, or list this event.
+    p1_intake_service.mark_enqueue_failed(db_session, store_id=other_store.id, event_ids=[ledger.id])
+    db_session.refresh(ledger)
+    assert ledger.status == "queued" and _line_lifecycle_audits(db_session) == []
+    assert p1_intake_service.claim_event(
+        db_session, store_id=other_store.id, webhook_event_id=event_id
+    ) is None
+    assert p1_intake_service.list_unresolved_events(db_session, other_store.id) == []
+
+    claimed = p1_intake_service.claim_event(db_session, store_id=store.id, webhook_event_id=event_id)
+    assert claimed is not None
+    assert p1_intake_service.finish_event(db_session, claimed, store_id=other_store.id) is None
+    db_session.refresh(ledger)
+    assert ledger.status == "processing"
+    assert [audit.new_value["company_id"] for audit in _line_lifecycle_audits(db_session)] == [company.id]
     assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 0
     assert db_session.execute(select(func.count(Order.id))).scalar_one() == 0

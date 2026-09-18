@@ -76,7 +76,11 @@ async def line_webhook(request: Request) -> Response:
             try:
                 queue.enqueue({**payload, "events": [event]})
             except Exception:  # noqa: BLE001 - preserve only the unqueued suffix for official redelivery.
-                p1_intake_service.mark_enqueue_failed(db, [pending_id for _, pending_id in pending[index:]])
+                p1_intake_service.mark_enqueue_failed(
+                    db,
+                    store_id=store.id,
+                    event_ids=[pending_id for _, pending_id in pending[index:]],
+                )
                 logger.exception("P1 queue enqueue failed; unqueued signed events remain recoverable")
                 return Response(status_code=503)
         return Response(status_code=200)

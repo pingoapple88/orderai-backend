@@ -93,6 +93,37 @@ def resolve_p1_store(db: Session) -> Store:
     return store
 
 
+def _append_line_event_transition_audit(
+    db: Session,
+    *,
+    event: LineWebhookEvent,
+    action: str,
+    reason_code: Optional[str],
+) -> None:
+    """Append the minimum safe audit payload for a durable ledger transition.
+
+    The webhook ID is deliberately one-way SHA-256 here. Raw LINE events,
+    source identifiers, message HMACs, drafts, PII, and secrets must never
+    enter ``audit_logs``.
+    """
+    db.add(
+        AuditLog(
+            store_id=event.store_id,
+            action=action,
+            resource_type="line_webhook_event",
+            resource_id=event.id,
+            new_value={
+                "company_id": event.company_id,
+                "status": event.status,
+                "reason_code": reason_code,
+                "webhook_event_id_sha256": hashlib.sha256(
+                    event.webhook_event_id.encode("utf-8")
+                ).hexdigest(),
+            },
+        )
+    )
+
+
 def record_line_events(db: Session, payload: dict[str, Any], store: Store) -> list[int]:
     """驗簽後寫入事件帳本，並回傳本次需要排入 worker 的事件 ID。
 
@@ -110,61 +141,88 @@ def record_line_events(db: Session, payload: dict[str, Any], store: Store) -> li
         raise P1IntakeConfigurationError("P1_IDENTITY_HMAC_KEY_MISSING")
 
     inserted: list[int] = []
-    for event in payload.get("events", []):
-        event_id = event.get("webhookEventId")
-        if not isinstance(event_id, str) or not event_id:
-            continue
-        message = event.get("message") or {}
-        source = event.get("source") or {}
-        try:
-            with db.begin_nested():
-                row = LineWebhookEvent(
-                    company_id=store.company_id,
-                    store_id=store.id,
-                    channel="line",
-                    webhook_event_id=event_id,
-                    event_type=str(event.get("type") or "unknown"),
-                    message_type=message.get("type"),
-                    message_id_hmac=_hmac_value(message.get("id")),
-                    source_user_hmac=_hmac_value(source.get("userId")),
-                    occurred_at=_occurred_at(event),
-                    status="queued",
-                )
-                db.add(row)
-                db.flush()
-                inserted.append(row.id)
-        except IntegrityError:
-            existing = db.execute(
-                select(LineWebhookEvent).where(
-                    LineWebhookEvent.store_id == store.id,
-                    LineWebhookEvent.channel == "line",
-                    LineWebhookEvent.webhook_event_id == event_id,
-                )
-            ).scalar_one_or_none()
-            if (
-                existing is not None
-                and existing.status == "failed"
-                and existing.error_code == "P1_QUEUE_ENQUEUE_FAILED"
-            ):
-                existing.status = "queued"
-                existing.error_code = None
-                inserted.append(existing.id)
-    db.commit()
+    try:
+        for event in payload.get("events", []):
+            event_id = event.get("webhookEventId")
+            if not isinstance(event_id, str) or not event_id:
+                continue
+            message = event.get("message") or {}
+            source = event.get("source") or {}
+            try:
+                with db.begin_nested():
+                    row = LineWebhookEvent(
+                        company_id=store.company_id,
+                        store_id=store.id,
+                        channel="line",
+                        webhook_event_id=event_id,
+                        event_type=str(event.get("type") or "unknown"),
+                        message_type=message.get("type"),
+                        message_id_hmac=_hmac_value(message.get("id")),
+                        source_user_hmac=_hmac_value(source.get("userId")),
+                        occurred_at=_occurred_at(event),
+                        status="queued",
+                    )
+                    db.add(row)
+                    db.flush()
+                    inserted.append(row.id)
+            except IntegrityError:
+                existing = db.execute(
+                    select(LineWebhookEvent).where(
+                        LineWebhookEvent.store_id == store.id,
+                        LineWebhookEvent.channel == "line",
+                        LineWebhookEvent.webhook_event_id == event_id,
+                    )
+                ).scalar_one_or_none()
+                if (
+                    existing is not None
+                    and existing.status == "failed"
+                    and existing.error_code == "P1_QUEUE_ENQUEUE_FAILED"
+                ):
+                    rearm_reason = existing.error_code
+                    existing.status = "queued"
+                    existing.error_code = None
+                    _append_line_event_transition_audit(
+                        db,
+                        event=existing,
+                        action="p1.line_webhook_event.queue_rearmed",
+                        reason_code=rearm_reason,
+                    )
+                    inserted.append(existing.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return inserted
 
 
-def mark_enqueue_failed(db: Session, event_ids: list[int]) -> None:
+def mark_enqueue_failed(db: Session, *, store_id: int, event_ids: list[int]) -> None:
     """將本次未能排入 worker 的事件標記為可由官方重送恢復。"""
     if not event_ids:
         return
     rows = db.execute(
-        select(LineWebhookEvent).where(LineWebhookEvent.id.in_(event_ids)).with_for_update()
+        select(LineWebhookEvent)
+        .where(
+            LineWebhookEvent.id.in_(event_ids),
+            LineWebhookEvent.store_id == store_id,
+            LineWebhookEvent.channel == "line",
+        )
+        .with_for_update()
     ).scalars().all()
-    for row in rows:
-        if row.status == "queued":
-            row.status = "failed"
-            row.error_code = "P1_QUEUE_ENQUEUE_FAILED"
-    db.commit()
+    try:
+        for row in rows:
+            if row.status == "queued":
+                row.status = "failed"
+                row.error_code = "P1_QUEUE_ENQUEUE_FAILED"
+                _append_line_event_transition_audit(
+                    db,
+                    event=row,
+                    action="p1.line_webhook_event.queue_failed",
+                    reason_code=row.error_code,
+                )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def claim_event(db: Session, *, store_id: int, webhook_event_id: str) -> Optional[LineWebhookEvent]:
@@ -180,17 +238,56 @@ def claim_event(db: Session, *, store_id: int, webhook_event_id: str) -> Optiona
     ).scalar_one_or_none()
     if row is None or row.status != "queued":
         return None
-    row.status = "processing"
-    row.claimed_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        row.status = "processing"
+        row.claimed_at = datetime.now(timezone.utc)
+        _append_line_event_transition_audit(
+            db,
+            event=row,
+            action="p1.line_webhook_event.claimed",
+            reason_code=None,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return row
 
 
-def finish_event(db: Session, event: LineWebhookEvent, *, error_code: Optional[str] = None) -> None:
-    event.status = "failed" if error_code else "processed"
-    event.error_code = error_code
-    event.processed_at = datetime.now(timezone.utc)
-    db.commit()
+def finish_event(
+    db: Session,
+    event: LineWebhookEvent,
+    *,
+    store_id: int,
+    error_code: Optional[str] = None,
+) -> Optional[LineWebhookEvent]:
+    """Finish only a processing event belonging to the caller's store scope."""
+    row = db.execute(
+        select(LineWebhookEvent)
+        .where(
+            LineWebhookEvent.id == event.id,
+            LineWebhookEvent.store_id == store_id,
+            LineWebhookEvent.channel == "line",
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+    if row is None or row.status != "processing":
+        return None
+    try:
+        row.status = "failed" if error_code else "processed"
+        row.error_code = error_code
+        row.processed_at = datetime.now(timezone.utc)
+        _append_line_event_transition_audit(
+            db,
+            event=row,
+            action="p1.line_webhook_event.finished",
+            reason_code=error_code,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return row
 
 
 def list_unresolved_events(
