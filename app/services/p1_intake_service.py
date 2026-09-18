@@ -96,9 +96,10 @@ def resolve_p1_store(db: Session) -> Store:
 def record_line_events(db: Session, payload: dict[str, Any], store: Store) -> list[int]:
     """驗簽後寫入事件帳本，並回傳本次需要排入 worker 的事件 ID。
 
-    已成功排入或已處理的重送不會再次入列。若前一次 queue enqueue
-    明確失敗，事件會以既有合法狀態 ``failed`` 及專用錯誤碼保存，由 LINE
-    官方重送重新武裝為 ``queued``；worker claim 仍是最後一道去重保護。
+    已成功排入、處理中或已完成的重送不會再次入列。若前一次逐事件 queue
+    enqueue 明確失敗，尚未入列的事件會以既有合法狀態 ``failed`` 及專用錯誤碼
+    保存，由 LINE 官方重送重新武裝為 ``queued``；worker claim 仍是最後一道
+    去重保護。
     """
     if store.company_id is None:
         raise P1IntakeConfigurationError("P1_COMPANY_SCOPE_MISSING")
@@ -180,6 +181,7 @@ def claim_event(db: Session, *, store_id: int, webhook_event_id: str) -> Optiona
     if row is None or row.status != "queued":
         return None
     row.status = "processing"
+    row.claimed_at = datetime.now(timezone.utc)
     db.commit()
     return row
 
@@ -189,6 +191,33 @@ def finish_event(db: Session, event: LineWebhookEvent, *, error_code: Optional[s
     event.error_code = error_code
     event.processed_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def list_unresolved_events(
+    db: Session, store_id: int, status: Optional[str] = None
+) -> list[LineWebhookEvent]:
+    """Return only operationally unresolved P1 events for the scoped store.
+
+    This is deliberately read-only: a ``processing`` event might have committed
+    its human-review case before its worker was interrupted, so it must not be
+    automatically rearmed. Operators can trace its event ID, claim time, and
+    error code without exposing source HMACs, raw webhook bodies, or drafts.
+    """
+    store = db.get(Store, store_id)
+    if store is None or store.company_id is None:
+        raise PermissionError("tenant company_id unresolved; fail-closed")
+    allowed_statuses = {"queued", "processing", "failed"}
+    if status is not None and status not in allowed_statuses:
+        raise ValueError("invalid P1 event status")
+    stmt = select(LineWebhookEvent).where(
+        LineWebhookEvent.store_id == store_id,
+        LineWebhookEvent.company_id == store.company_id,
+    )
+    if status is None:
+        stmt = stmt.where(LineWebhookEvent.status.in_(allowed_statuses))
+    else:
+        stmt = stmt.where(LineWebhookEvent.status == status)
+    return list(db.execute(stmt.order_by(LineWebhookEvent.created_at.desc())).scalars())
 
 
 def _audit(db: Session, *, store: Store, action: str, resource_type: str, resource_id: Optional[int], details: dict) -> None:

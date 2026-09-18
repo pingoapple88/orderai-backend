@@ -10,10 +10,12 @@ import json
 import logging
 
 from fastapi import APIRouter, Request, Response
+from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.security import verify_line_signature
+from app.models import LineWebhookEvent
 from app.providers import get_queue
 from app.services import p1_intake_service
 
@@ -54,12 +56,29 @@ async def line_webhook(request: Request) -> Response:
         if not inserted:
             return Response(status_code=200)
 
-        try:
-            get_queue().enqueue(payload)
-        except Exception:  # noqa: BLE001 - preserve ledger state so LINE redelivery can recover.
-            p1_intake_service.mark_enqueue_failed(db, inserted)
-            logger.exception("P1 queue enqueue failed; signed events remain recoverable")
-            return Response(status_code=503)
+        # One event per job contains partial enqueue failures: an outage after
+        # event N leaves only the unqueued suffix recoverable by an official LINE
+        # redelivery. Already queued events are not marked failed or duplicated.
+        event_ids = {
+            webhook_event_id: ledger_id
+            for ledger_id, webhook_event_id in db.execute(
+                select(LineWebhookEvent.id, LineWebhookEvent.webhook_event_id)
+                .where(LineWebhookEvent.id.in_(inserted))
+            )
+        }
+        pending = [
+            (event, event_ids[event_id])
+            for event in payload.get("events", [])
+            if isinstance((event_id := event.get("webhookEventId")), str) and event_id in event_ids
+        ]
+        queue = get_queue()
+        for index, (event, event_id) in enumerate(pending):
+            try:
+                queue.enqueue({**payload, "events": [event]})
+            except Exception:  # noqa: BLE001 - preserve only the unqueued suffix for official redelivery.
+                p1_intake_service.mark_enqueue_failed(db, [pending_id for _, pending_id in pending[index:]])
+                logger.exception("P1 queue enqueue failed; unqueued signed events remain recoverable")
+                return Response(status_code=503)
         return Response(status_code=200)
     finally:
         db.close()

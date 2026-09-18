@@ -156,6 +156,21 @@ class P1IntakeCaseOut(CamelModel):
     updated_at: Optional[datetime] = None
 
 
+class P1InboundEventOut(CamelModel):
+    """Safe operational metadata for a non-terminal signed inbound event."""
+    id: int
+    store_id: int
+    webhook_event_id: str
+    event_type: str
+    message_type: Optional[str] = None
+    status: str
+    error_code: Optional[str] = None
+    occurred_at: Optional[datetime] = None
+    claimed_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
 class P1IntakeDispatchOut(CamelModel):
     id: int
     conversation_id: int

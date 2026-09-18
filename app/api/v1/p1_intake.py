@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import require_role, verify_store_access
 from app.core.response import success_response
-from app.schemas import P1IntakeCaseOut, P1IntakeDispatchOut, P1IntakeReview
-from app.services import p1_delivery_service
+from app.schemas import P1InboundEventOut, P1IntakeCaseOut, P1IntakeDispatchOut, P1IntakeReview
+from app.services import p1_delivery_service, p1_intake_service
 
 router = APIRouter()
 
@@ -26,6 +26,23 @@ def list_p1_cases(
 ):
     try:
         return success_response([_case_out(row) for row in p1_delivery_service.list_cases(db, store_id, state)])
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get("/events")
+def list_unresolved_p1_events(
+    store_id: int,
+    status: Optional[str] = None,
+    principal: dict = Depends(verify_store_access),
+    db: Session = Depends(get_db),
+):
+    """Expose only non-terminal event metadata for manual P1 incident follow-up."""
+    try:
+        rows = p1_intake_service.list_unresolved_events(db, store_id, status)
+        return success_response([P1InboundEventOut.model_validate(row).model_dump(by_alias=True) for row in rows])
     except PermissionError as exc:
         raise HTTPException(403, str(exc))
     except ValueError as exc:
