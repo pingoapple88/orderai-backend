@@ -35,6 +35,10 @@ from app.core.interfaces.erp_ingest import (  # noqa: E402
     PendingOrderItem,
     PendingOrderMappingConfig,
 )
+from app.core.interfaces.erp_traceability import (  # noqa: E402
+    build_pending_order_trace_manifest,
+    pending_order_trace_validation_reason,
+)
 from app.providers import get_jiezhou_erp_ingest_provider, settings  # noqa: E402
 from app.providers.jiezhou_erp import FakeJiezhouErpIngestProvider  # noqa: E402
 
@@ -177,6 +181,19 @@ def run_contract_smoke(fixture_path: Path = DEFAULT_FIXTURE_PATH) -> Evidence:
 
     fixture = load_synthetic_fixture(fixture_path)
     config, intent = build_provider_neutral_contract(fixture)
+    trace_manifest = build_pending_order_trace_manifest(
+        intent,
+        contract_version=config.contract_reference,
+    )
+    if (
+        pending_order_trace_validation_reason(
+            intent,
+            contract_version=config.contract_reference,
+            manifest=trace_manifest,
+        )
+        is not None
+    ):
+        raise AssertionError("trace manifest must verify against its source intent")
 
     pending_provider = FakeJiezhouErpIngestProvider(mapping_config=config)
     pending_result = asyncio.run(pending_provider.submit_pending_confirmation_intent(intent))
@@ -241,6 +258,7 @@ def run_contract_smoke(fixture_path: Path = DEFAULT_FIXTURE_PATH) -> Evidence:
         "execution_mode": "offline_synthetic_no_transport",
         "fixture_version": fixture["fixture_version"],
         "contract_status": fixture["contract_status"],
+        "trace_manifest": trace_manifest.comparison_evidence(),
         "formal_provider": _verify_formal_provider_is_blocked(config, intent),
         "scenarios": scenarios,
         "assertions": {
