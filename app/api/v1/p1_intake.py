@@ -5,10 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_role, verify_store_access
+from app.core.deps import require_role, require_store_role, verify_store_access
 from app.core.response import success_response
-from app.schemas import P1InboundEventOut, P1IntakeCaseOut, P1IntakeDispatchOut, P1IntakeReview
-from app.services import p1_delivery_service, p1_intake_service
+from app.schemas import (
+    P1InboundEventOut,
+    P1IntakeCaseOut,
+    P1IntakeDispatchOut,
+    P1IntakeReview,
+    P1ReadinessOut,
+)
+from app.services import p1_delivery_service, p1_intake_service, p1_readiness_service
 
 router = APIRouter()
 
@@ -47,6 +53,17 @@ def list_unresolved_p1_events(
         raise HTTPException(403, str(exc))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+
+
+@router.get("/readiness")
+def get_p1_readiness(
+    store_id: int,
+    _principal: dict = Depends(require_store_role("owner", "manager")),
+    db: Session = Depends(get_db),
+):
+    """Read-only owner/manager preflight with boolean-only, tenant-safe output."""
+    readiness = p1_readiness_service.get_p1_readiness(db, store_id=store_id)
+    return success_response(P1ReadinessOut.model_validate(readiness).model_dump(by_alias=True))
 
 
 @router.post("/{conversation_id}/review")
