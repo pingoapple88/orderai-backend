@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from app.models import BillingRecord, Customer, LineWebhookEvent, Order, Store
+from app.models import AuditLog, BillingRecord, Company, Customer, LineWebhookEvent, Order, Plan, Product, Store, User
 from app import p1_uat_seed
 
 
@@ -54,11 +54,33 @@ def test_clear_refuses_when_formal_side_effect_is_detected(db_session, monkeypat
         p1_uat_seed.clear_p1_uat(db_session)
 
 
-def test_clear_removes_only_synthetic_baseline(db_session, monkeypatch):
+def test_clear_resets_dynamic_data_and_retains_append_only_audit_and_base_assets(db_session, monkeypatch):
     _configure_uat(monkeypatch)
-    p1_uat_seed.seed_p1_uat(db_session)
+    seeded = p1_uat_seed.seed_p1_uat(db_session)
+    audits_before_clear = db_session.execute(
+        select(AuditLog).where(AuditLog.store_id == seeded.store_id)
+    ).scalars().all()
+
     p1_uat_seed.clear_p1_uat(db_session)
-    assert db_session.execute(select(Store)).scalars().all() == []
+
+    assert db_session.get(Company, seeded.company_id) is not None
+    assert db_session.get(Store, seeded.store_id) is not None
+    assert db_session.get(User, seeded.owner_user_id) is not None
+    assert db_session.get(Product, seeded.product_id) is not None
+    assert db_session.execute(
+        select(Plan).where(
+            Plan.name == p1_uat_seed._SYNTHETIC_PLAN_NAME,
+            Plan.channel == "direct",
+        )
+    ).scalar_one_or_none() is not None
+    audits_after_clear = db_session.execute(
+        select(AuditLog).where(AuditLog.store_id == seeded.store_id)
+    ).scalars().all()
+    assert len(audits_after_clear) == len(audits_before_clear) + 1
+
+    baseline = p1_uat_seed.verify_p1_uat_baseline(db_session)
+    assert baseline["pending_cases"] == 0
+    assert baseline["erp_delivery_outbox"] == 0
 
 
 def test_synthetic_direct_event_is_not_treated_as_line_webhook_side_effect(db_session, monkeypatch):
