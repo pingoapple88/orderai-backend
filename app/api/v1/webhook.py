@@ -1,11 +1,12 @@
-"""LINE Webhook（PR-3 任務三）：HMAC-SHA256 簽章驗證 + 入列。
+"""LINE Webhook: signature verification, mandatory P1 ledger intake, and queueing.
 
-安全設計：
-- 驗章失敗回 401，不入列（fail-closed）
-- 使用 verify_line_signature（compare_digest 防時序攻擊）
-- channel_secret 從 ENV 讀取，不入 DB
+A signed request is never routed to the legacy direct Customer/Order workflow.
+It must be recorded in the existing P1 event ledger before queueing, or the
+endpoint fails closed.
 """
 from __future__ import annotations
+
+import json
 
 from fastapi import APIRouter, Request, Response
 
@@ -27,26 +28,30 @@ async def line_webhook(request: Request) -> Response:
     if not verify_line_signature(body, signature, settings.line_messaging_channel_secret):
         return Response(status_code=401)
 
-    # 簽章通過才入列 → Worker 非同步消化（避免 LINE 5 秒逾時重試雪崩）
-    import json
     try:
         payload = json.loads(body)
     except Exception:
         return Response(status_code=400)
 
-    if settings.p1_intake_enabled:
-        db = SessionLocal()
-        try:
-            store = p1_intake_service.resolve_p1_store(db)
-            inserted = p1_intake_service.record_line_events(db, payload, store)
-        except p1_intake_service.P1IntakeConfigurationError:
-            db.rollback()
-            return Response(status_code=503)
-        finally:
-            db.close()
-        # 全為重送事件時照常快速 ACK，但不再重複入列。
-        if not inserted:
-            return Response(status_code=200)
+    # Every signed inbound event must enter the existing encrypted/HMAC P1 ledger
+    # before queueing. Disabling or incompletely configuring P1 is fail-closed;
+    # it never restores the removed legacy direct-order behavior.
+    if not settings.p1_intake_enabled:
+        return Response(status_code=503)
+
+    db = SessionLocal()
+    try:
+        store = p1_intake_service.resolve_p1_store(db)
+        inserted = p1_intake_service.record_line_events(db, payload, store)
+    except p1_intake_service.P1IntakeConfigurationError:
+        db.rollback()
+        return Response(status_code=503)
+    finally:
+        db.close()
+
+    # Redeliveries are ACKed but do not enqueue another worker job.
+    if not inserted:
+        return Response(status_code=200)
 
     get_queue().enqueue(payload)
     return Response(status_code=200)

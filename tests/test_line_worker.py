@@ -1,211 +1,214 @@
-"""WO-002 Worker body 測試（真 PostgreSQL test DB + mock LLM/LINE provider）。
+"""Issue #34 focused LINE worker tests against the migrated PostgreSQL fixture.
 
-覆蓋 8 場景：pre-filter、LLM 失敗降級、fail-closed（信心/無店/無 owner）、
-建單寫 DB（customer_id + 單價 0 無 ×100）、去重（同 webhookEventId 只一單）、多 event。
+The worker may create only existing P1 ledger-backed review cases. All fixtures
+are synthetic; no LINE or ERP network calls occur.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 
-import pytest
-import httpx
 from sqlalchemy import func, select
 
-from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, LLMProviderExecutionError
-from app.models import Customer, Order, OrderItem, Plan, Product, Store, User
+from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult
+from app.models import (
+    Company,
+    Customer,
+    ErpDeliveryOutbox,
+    IntakeConversation,
+    LineWebhookEvent,
+    Order,
+    Plan,
+    Product,
+    Store,
+)
+from app.services import p1_intake_service
 from app.workers import line_worker
 
 
-# ── 測試替身 ────────────────────────────────────────────────────────────────
+_FERNET_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+
+
 class _FakeLLM:
-    def __init__(self, result=None, exc=None):
-        self.result, self.exc = result, exc
+    def __init__(self, result):
+        self.result = result
 
     async def extract_order(self, text=None, image_url=None, industry_type="ecom"):
-        if self.exc:
-            raise self.exc
         return self.result
 
 
 class _FakeNotif:
-    def __init__(self):
-        self.sent = []
-
     async def send_message(self, to, text, reply_token=None):
-        self.sent.append({"to": to, "text": text, "reply_token": reply_token})
+        raise AssertionError("text intake must not automatically promise a sale")
 
 
-def _install(monkeypatch, llm, notif, store_id):
-    monkeypatch.setattr("app.providers.get_llm_provider", lambda: llm)
-    monkeypatch.setattr("app.providers.get_notification_provider", lambda: notif)
-    monkeypatch.setattr(line_worker.settings, "default_store_id", store_id)
-
-
-# ── seed / payload / run helpers ─────────────────────────────────────────────
-def _seed(db, *, owner_role="owner"):
-    plan = Plan(name="lite", channel="direct", monthly_price=0)
-    db.add(plan)
+def _seed(db):
+    company = Company(name="Issue 34 合成公司")
+    plan = Plan(name="issue34", channel="direct", monthly_price=0)
+    db.add_all([company, plan])
     db.flush()
-    store = Store(name="乖乖商店", industry_type="ecom", market="tw")
+    store = Store(name="Issue 34 合成店", company_id=company.id, industry_type="ecom", market="tw")
     db.add(store)
     db.flush()
-    user = User(line_id="Uowner", name="老闆", role=owner_role,
-                store_id=store.id, plan_id=plan.id)
-    apple = Product(store_id=store.id, name="蘋果", aliases=[], unit="顆", price_cents=4500)
-    banana = Product(store_id=store.id, name="香蕉", aliases=[], unit="根", price_cents=3000)
-    db.add_all([user, apple, banana])
-    db.flush()
+    product = Product(store_id=store.id, name="友善雞蛋", aliases=["雞蛋"], unit="盒", price_cents=12000)
+    db.add(product)
     db.commit()
-    return store, user
+    return store, product
 
 
-def _ok_result(name="王小明"):
-    # 模型只抽取商品與數量；價格由店家型錄帶入。
+def _configure_p1(monkeypatch, store_id, product_id):
+    monkeypatch.setattr(line_worker.settings, "p1_intake_enabled", True)
+    monkeypatch.setattr(line_worker.settings, "default_store_id", store_id)
+    monkeypatch.setattr(line_worker.settings, "p1_pii_encryption_key", _FERNET_KEY)
+    monkeypatch.setattr(line_worker.settings, "p1_identity_hmac_key", "issue34-synthetic-hmac")
+    monkeypatch.setattr(line_worker.settings, "p1_erp_target_company_id", 77)
+    monkeypatch.setattr(line_worker.settings, "p1_erp_sales_location_id", 91)
+    monkeypatch.setattr(
+        line_worker.settings,
+        "p1_erp_product_id_map_json",
+        json.dumps({str(product_id): 101}),
+    )
+    monkeypatch.setattr(line_worker.settings, "p1_attachment_followup_enabled", False)
+    monkeypatch.setattr(line_worker.settings, "p1_internal_relay_line_user_ids", "")
+
+
+def _result(*, confidence=0.96):
     return ExtractionResult(
-        items=[ExtractedItem(product_name="蘋果", quantity=3, evidence="蘋果 x3", confidence_score=0.9)],
-        customer_name=name, confidence_score=0.9, industry_type="ecom",
-        raw={"src": "test"},
+        items=[
+            ExtractedItem(
+                product_name="友善雞蛋",
+                quantity=2,
+                unit="盒",
+                evidence="友善雞蛋 2 盒",
+                confidence_score=confidence,
+            )
+        ],
+        customer_name="合成買方",
+        customer_phone="0900000000",
+        confidence_score=confidence,
+        industry_type="ecom",
+        provider_name="synthetic-llm",
+        raw={
+            "requested_for": "2026-09-20T02:00:00+00:00",
+            "special_request": "送達前電話確認",
+        },
     )
 
 
-def _text_payload(event_id="evt-1", uid="Ubuyer001", text="蘋果 x3"):
-    return {"destination": "Ubot", "events": [{
-        "type": "message", "webhookEventId": event_id, "replyToken": "rt-" + event_id,
-        "source": {"type": "user", "userId": uid},
-        "message": {"type": "text", "text": text},
-    }]}
+def _payload(event_id="issue34-event"):
+    return {
+        "destination": "Uofficial",
+        "events": [
+            {
+                "type": "message",
+                "webhookEventId": event_id,
+                "timestamp": 1_789_000_000_000,
+                "replyToken": f"reply-{event_id}",
+                "source": {"type": "user", "userId": "Uissue34buyer"},
+                "message": {
+                    "type": "text",
+                    "id": f"message-{event_id}",
+                    "text": "合成買方訂友善雞蛋 2 盒，2026-09-20 10:00+00:00，需要送達前電話確認",
+                },
+            }
+        ],
+    }
 
 
-def _run(payload, db):
+def _record(db, store, payload):
+    return p1_intake_service.record_line_events(db, payload, store)
+
+
+def _run(monkeypatch, result, payload, db):
+    monkeypatch.setattr("app.providers.get_llm_provider", lambda: _FakeLLM(result))
+    monkeypatch.setattr("app.providers.get_notification_provider", _FakeNotif)
     asyncio.run(line_worker.process_webhook_event(payload, db=db))
 
 
-def _order_count(db):
-    return db.execute(select(func.count(Order.id))).scalar_one()
+def _count(db, model):
+    return db.execute(select(func.count(model.id))).scalar_one()
 
 
-# ── 場景 1：非文字 event → pre-filter，不建單 ───────────────────────────────
-def test_non_text_event_no_order(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    notif = _FakeNotif()
-    _install(monkeypatch, _FakeLLM(result=_ok_result()), notif, store.id)
-    payload = {"destination": "Ubot", "events": [{
-        "type": "message", "webhookEventId": "e1", "replyToken": "rt",
-        "source": {"userId": "Ub"}, "message": {"type": "image"}}]}
-    _run(payload, db_session)
-    assert _order_count(db_session) == 0
+def test_complete_five_field_text_only_creates_human_review_case_no_formal_customer_or_order(db_session, monkeypatch):
+    store, product = _seed(db_session)
+    _configure_p1(monkeypatch, store.id, product.id)
+    payload = _payload()
+    assert _record(db_session, store, payload)
+
+    _run(monkeypatch, _result(), payload, db_session)
+
+    case = db_session.execute(select(IntakeConversation)).scalar_one()
+    outbox = db_session.execute(select(ErpDeliveryOutbox)).scalar_one()
+    assert case.state == "needs_human_review"
+    assert outbox.status == "blocked"
+    assert outbox.last_error_code == "ERP_CONNECTION_BLOCKED"
+    assert _count(db_session, Customer) == 0
+    assert _count(db_session, Order) == 0
+    assert _count(db_session, LineWebhookEvent) == 1
 
 
-# ── 場景 2：LLM 例外 → 降級通知，不建單 ─────────────────────────────────────
-def test_llm_failure_notifies_and_no_order(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    notif = _FakeNotif()
-    _install(monkeypatch, _FakeLLM(exc=RuntimeError("boom")), notif, store.id)
-    _run(_text_payload(), db_session)
-    assert _order_count(db_session) == 0
-    assert notif.sent and "provider_error" in notif.sent[0]["text"]
+def test_low_confidence_text_stays_human_review_without_delivery_or_formal_records(db_session, monkeypatch):
+    store, product = _seed(db_session)
+    _configure_p1(monkeypatch, store.id, product.id)
+    payload = _payload("issue34-low-confidence")
+    assert _record(db_session, store, payload)
+
+    _run(monkeypatch, _result(confidence=0.20), payload, db_session)
+
+    case = db_session.execute(select(IntakeConversation)).scalar_one()
+    assert case.state == "needs_human_review"
+    assert "confidence_below_threshold" in (case.reason_codes or {}).get("codes", [])
+    assert _count(db_session, ErpDeliveryOutbox) == 0
+    assert _count(db_session, Customer) == 0
+    assert _count(db_session, Order) == 0
 
 
-def test_llm_timeout_notifies_reason_and_no_order(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    notif = _FakeNotif()
-    _install(monkeypatch, _FakeLLM(exc=httpx.TimeoutException("timeout")), notif, store.id)
-    _run(_text_payload(event_id="timeout-1"), db_session)
+def test_redelivery_claims_existing_ledger_event_once_without_duplicate_case_or_formal_records(db_session, monkeypatch):
+    store, product = _seed(db_session)
+    _configure_p1(monkeypatch, store.id, product.id)
+    payload = _payload("issue34-redelivery")
+    assert _record(db_session, store, payload)
+    assert _record(db_session, store, payload) == []
 
-    assert _order_count(db_session) == 0
-    assert notif.sent and "provider_timeout" in notif.sent[0]["text"]
+    _run(monkeypatch, _result(), payload, db_session)
+    _run(monkeypatch, _result(), payload, db_session)
 
-
-def test_structured_provider_error_notifies_reason_and_no_order(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    notif = _FakeNotif()
-    _install(
-        monkeypatch,
-        _FakeLLM(exc=LLMProviderExecutionError("provider_error", "controlled failure")),
-        notif,
-        store.id,
-    )
-    _run(_text_payload(event_id="provider-error-1"), db_session)
-
-    assert _order_count(db_session) == 0
-    assert notif.sent and "provider_error" in notif.sent[0]["text"]
+    assert _count(db_session, LineWebhookEvent) == 1
+    assert _count(db_session, IntakeConversation) == 1
+    assert _count(db_session, ErpDeliveryOutbox) == 1
+    assert _count(db_session, Customer) == 0
+    assert _count(db_session, Order) == 0
 
 
-# ── 場景 3：信心 < 閾值 → fail-closed，不建單 ───────────────────────────────
-def test_low_confidence_fail_closed(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    res = ExtractionResult(items=[ExtractedItem(product_name="蘋果", quantity=3, evidence="蘋果 x3", confidence_score=0.3)],
-                           confidence_score=0.3, industry_type="ecom")
-    notif = _FakeNotif()
-    _install(monkeypatch, _FakeLLM(result=res), notif, store.id)
-    _run(_text_payload(), db_session)
-    assert _order_count(db_session) == 0
-    assert notif.sent and "人工確認" in notif.sent[0]["text"]
+def test_missing_encryption_configuration_fails_closed_after_claim_without_formal_records(db_session, monkeypatch):
+    store, product = _seed(db_session)
+    _configure_p1(monkeypatch, store.id, product.id)
+    payload = _payload("issue34-key-missing")
+    assert _record(db_session, store, payload)
+    monkeypatch.setattr(line_worker.settings, "p1_pii_encryption_key", "")
+
+    _run(monkeypatch, _result(), payload, db_session)
+
+    event = db_session.execute(select(LineWebhookEvent)).scalar_one()
+    assert event.status == "failed"
+    assert event.error_code == "P1_PII_ENCRYPTION_KEY_MISSING"
+    assert _count(db_session, IntakeConversation) == 0
+    assert _count(db_session, ErpDeliveryOutbox) == 0
+    assert _count(db_session, Customer) == 0
+    assert _count(db_session, Order) == 0
 
 
-# ── 場景 4：信心足且型錄命中 → 建單寫 DB ───────────────────────────────────────
-def test_high_confidence_creates_order(db_session, monkeypatch):
-    store, owner = _seed(db_session)
-    notif = _FakeNotif()
-    _install(monkeypatch, _FakeLLM(result=_ok_result()), notif, store.id)
-    _run(_text_payload(event_id="evt-x", uid="Ubuyer9"), db_session)
+def test_disabled_p1_worker_fails_closed_without_claiming_or_creating_formal_records(db_session, monkeypatch):
+    store, product = _seed(db_session)
+    _configure_p1(monkeypatch, store.id, product.id)
+    payload = _payload("issue34-p1-disabled")
+    assert _record(db_session, store, payload)
+    monkeypatch.setattr(line_worker.settings, "p1_intake_enabled", False)
 
-    orders = db_session.execute(select(Order)).scalars().all()
-    assert len(orders) == 1
-    o = orders[0]
-    assert o.store_id == store.id
-    assert o.user_id == owner.id            # owner 反查
-    assert o.customer_id is not None        # 綁客戶
-    assert o.line_event_id == "evt-x"       # 去重鍵寫入
-    assert o.status == "pending_confirm"
-    assert o.total_cents == 13500            # 單價由型錄帶入，值為整數分
-    assert o.channel == "line"
+    _run(monkeypatch, _result(), payload, db_session)
 
-    items = db_session.execute(select(OrderItem)).scalars().all()
-    assert len(items) == 1
-    assert items[0].product_name == "蘋果" and items[0].quantity == 3
-    assert items[0].unit_price_cents == 4500 and items[0].subtotal_cents == 13500
-
-    cust = db_session.get(Customer, o.customer_id)
-    assert cust.line_user_id == "Ubuyer9" and cust.store_id == store.id
-    assert notif.sent and "已收到您的訂單" in notif.sent[0]["text"]
-
-
-# ── 場景 5：同 webhookEventId 兩次 → 只一單（UNIQUE 去重）────────────────────
-def test_duplicate_event_creates_one_order(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    _install(monkeypatch, _FakeLLM(result=_ok_result()), _FakeNotif(), store.id)
-    p = _text_payload(event_id="dup-1", uid="Ubuyer")
-    _run(p, db_session)
-    _run(p, db_session)   # 重放同一 event
-    assert _order_count(db_session) == 1
-
-
-# ── 場景 6：store 不存在 → fail-closed，不建孤兒單 ──────────────────────────
-def test_store_not_found_no_order(db_session, monkeypatch):
-    _install(monkeypatch, _FakeLLM(result=_ok_result()), _FakeNotif(), 999)
-    _run(_text_payload(), db_session)
-    assert _order_count(db_session) == 0
-
-
-# ── 場景 7：store 有但無 owner → fail-closed ────────────────────────────────
-def test_owner_not_found_no_order(db_session, monkeypatch):
-    store, _ = _seed(db_session, owner_role="staff")   # 有 user 但非 owner
-    _install(monkeypatch, _FakeLLM(result=_ok_result()), _FakeNotif(), store.id)
-    _run(_text_payload(), db_session)
-    assert _order_count(db_session) == 0
-
-
-# ── 場景 8：一 payload 多 event → 各自建單，同買家只一 customer ──────────────
-def test_multi_events_two_orders_one_customer(db_session, monkeypatch):
-    store, _ = _seed(db_session)
-    _install(monkeypatch, _FakeLLM(result=_ok_result()), _FakeNotif(), store.id)
-    payload = {"destination": "Ubot", "events": [
-        {"type": "message", "webhookEventId": "m1", "replyToken": "r1",
-         "source": {"userId": "UsameBuyer"}, "message": {"type": "text", "text": "蘋果 x3"}},
-        {"type": "message", "webhookEventId": "m2", "replyToken": "r2",
-         "source": {"userId": "UsameBuyer"}, "message": {"type": "text", "text": "香蕉 x2"}},
-    ]}
-    _run(payload, db_session)
-    assert _order_count(db_session) == 2
-    assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 1
+    event = db_session.execute(select(LineWebhookEvent)).scalar_one()
+    assert event.status == "queued"
+    assert _count(db_session, IntakeConversation) == 0
+    assert _count(db_session, Customer) == 0
+    assert _count(db_session, Order) == 0
