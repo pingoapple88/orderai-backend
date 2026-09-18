@@ -234,14 +234,16 @@ def verify_p1_uat_baseline(db: Session) -> dict[str, Any]:
 
 
 def clear_p1_uat(db: Session) -> None:
-    """僅清除精準識別的合成資料；發現正式副作用時停止，交人工調查。"""
+    """重置精準識別的合成 UAT 動態資料，保留基礎資產與 append-only 稽核。"""
     _assert_uat_database_target()
     store = _one(db, select(Store).where(Store.store_key == _SYNTHETIC_STORE_KEY), "P1_UAT_STORE_NOT_FOUND")
     if any(_forbidden_counts(db, store.id).values()):
         raise P1UatSeedBlocked("P1_UAT_CLEAR_BLOCKED_BY_FORMAL_SIDE_EFFECT")
-    company_id = store.company_id
-    owner_ids = select(User.id).where(User.store_id == store.id)
-    conversation_ids = select(IntakeConversation.id).where(IntakeConversation.store_id == store.id)
+    owner = _one(
+        db,
+        select(User).where(User.store_id == store.id, User.line_id == _SYNTHETIC_OWNER_LINE_ID),
+        "P1_UAT_OWNER_NOT_FOUND",
+    )
     db.execute(delete(AIUsageLog).where(AIUsageLog.store_id == store.id))
     db.execute(delete(AIExtraction).where(AIExtraction.store_id == store.id))
     db.execute(delete(AttachmentDraft).where(AttachmentDraft.store_id == store.id))
@@ -250,12 +252,20 @@ def clear_p1_uat(db: Session) -> None:
     db.execute(delete(LineWebhookEvent).where(LineWebhookEvent.store_id == store.id))
     db.execute(delete(InventoryInquiry).where(InventoryInquiry.store_id == store.id))
     db.execute(delete(OrderBatch).where(OrderBatch.store_id == store.id))
-    db.execute(delete(AuditLog).where(AuditLog.store_id == store.id))
-    db.execute(delete(UserPreference).where(UserPreference.user_id.in_(owner_ids)))
-    db.execute(delete(Product).where(Product.store_id == store.id))
-    db.execute(delete(User).where(User.store_id == store.id))
-    db.execute(delete(Store).where(Store.id == store.id))
-    if company_id is not None:
-        db.execute(delete(Company).where(Company.id == company_id, Company.name == _SYNTHETIC_COMPANY_NAME))
-    db.execute(delete(Plan).where(Plan.name == _SYNTHETIC_PLAN_NAME, Plan.channel == "direct"))
+    db.add(AuditLog(
+        user_id=owner.id,
+        store_id=store.id,
+        action="p1.uat_cleanup.applied",
+        resource_type="p1_uat_pending_reset",
+        resource_id=store.id,
+        new_value={
+            "synthetic_only": True,
+            "audit_retained": True,
+            "base_assets_retained": True,
+            "formal_customer_created": False,
+            "formal_order_created": False,
+            "payment_created": False,
+            "line_webhook_event_created": False,
+        },
+    ))
     db.commit()
