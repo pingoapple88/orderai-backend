@@ -403,6 +403,7 @@ def create_text_case(
         customer_request = PendingCustomerRequest(
             company_id=store.company_id,
             store_id=store.id,
+            sales_location_id=settings.p1_erp_sales_location_id,
             idempotency_key=f"p1-customer:{store.company_id}:{source_event.webhook_event_id}",
             line_user_id=source_user_id,
             display_name=getattr(result, "customer_name", None),
