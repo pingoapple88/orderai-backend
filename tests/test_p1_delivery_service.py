@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.interfaces.erp_ingest import ErpIngestResult
-from app.models import AuditLog, Customer, ErpDeliveryOutbox, IntakeConversation, Order, Product, User
+from app.models import AuditLog, Customer, ErpDeliveryOutbox, IntakeConversation, LineWebhookEvent, Order, Product, User
 from app.services import p1_delivery_service, p1_intake_service
 from app.workers import line_worker
 from tests.test_p1_intake import _FakeLLM, _configure_p1, _event, _install_worker, _payload, _record, _result, _run, _seed
@@ -36,6 +36,7 @@ class _ProviderMustNotRun:
         raise AssertionError("受控送件守門失敗前不可呼叫 ERP Adapter")
 
 
+
 def _make_deliverable_case(db_session, monkeypatch):
     _, store = _seed(db_session)
     product_id = db_session.execute(select(Product.id)).scalar_one()
@@ -47,9 +48,11 @@ def _make_deliverable_case(db_session, monkeypatch):
     return store, db_session.execute(select(IntakeConversation)).scalar_one()
 
 
+
 def _principal(db_session, store_id):
     user_id = db_session.execute(select(User.id).where(User.store_id == store_id)).scalar_one()
     return {"user_id": user_id, "store_id": store_id, "role": "owner"}
+
 
 
 def _api_client(db_session):
@@ -63,9 +66,11 @@ def _api_client(db_session):
     return app
 
 
+
 def _auth_headers(principal):
     token = create_access_token(principal)
     return {"Authorization": f"Bearer {token}"}
+
 
 
 def test_customer_confirmation_is_required_before_isolated_dispatch(db_session, monkeypatch):
@@ -82,6 +87,7 @@ def test_customer_confirmation_is_required_before_isolated_dispatch(db_session, 
     assert outbox.status == "blocked" and outbox.attempt_count == 0
     assert db_session.execute(select(Order)).scalars().all() == []
     assert db_session.execute(select(Customer)).scalars().all() == []
+
 
 
 def test_human_review_then_explicit_localhost_delivery_closes_case_without_local_order(db_session, monkeypatch):
@@ -103,6 +109,7 @@ def test_human_review_then_explicit_localhost_delivery_closes_case_without_local
     assert "0900000000" not in audit_text and "友善雞蛋 2 盒" not in audit_text
 
 
+
 def test_isolated_delivery_rejects_nonlocal_target_before_provider_is_called(db_session, monkeypatch):
     store, case = _make_deliverable_case(db_session, monkeypatch)
     principal = _principal(db_session, store.id)
@@ -113,6 +120,7 @@ def test_isolated_delivery_rejects_nonlocal_target_before_provider_is_called(db_
         asyncio.run(p1_delivery_service.dispatch_outbox(db_session, principal, store.id, case.id, provider=_AcceptedErp()))
     assert exc.value.reason_code == "P1_ERP_TARGET_NOT_ISOLATED"
     assert db_session.execute(select(ErpDeliveryOutbox)).scalar_one().attempt_count == 0
+
 
 
 def _configure_external_uat_delivery(monkeypatch):
@@ -130,6 +138,7 @@ def _configure_external_uat_delivery(monkeypatch):
         "p1_erp_uat_allowed_hosts",
         "merchcore-platform-uat.example.test",
     )
+
 
 
 def test_external_uat_delivery_requires_all_explicit_guards_before_provider_is_called(db_session, monkeypatch):
@@ -176,6 +185,7 @@ def test_external_uat_delivery_fails_closed_for_missing_or_production_guards(
     assert outbox.status == "queued" and outbox.attempt_count == 0
 
 
+
 def test_external_uat_delivery_requires_https_even_for_exact_allowed_host(db_session, monkeypatch):
     store, case = _make_deliverable_case(db_session, monkeypatch)
     principal = _principal(db_session, store.id)
@@ -195,6 +205,7 @@ def test_external_uat_delivery_requires_https_even_for_exact_allowed_host(db_ses
     assert exc.value.reason_code == "P1_UAT_HTTPS_REQUIRED"
 
 
+
 def test_p1_intake_api_rejects_cross_store_owner_before_case_access(db_session, monkeypatch):
     store, case = _make_deliverable_case(db_session, monkeypatch)
     principal = _principal(db_session, store.id)
@@ -211,6 +222,7 @@ def test_p1_intake_api_rejects_cross_store_owner_before_case_access(db_session, 
         assert db_session.execute(select(ErpDeliveryOutbox)).scalar_one().status == "blocked"
     finally:
         app.dependency_overrides.clear()
+
 
 
 def test_p1_intake_api_enforces_review_and_dispatch_state_conflicts(db_session, monkeypatch):
@@ -243,5 +255,42 @@ def test_p1_intake_api_enforces_review_and_dispatch_state_conflicts(db_session, 
         assert db_session.get(IntakeConversation, case.id).state == "awaiting_erp_delivery"
         outbox = db_session.execute(select(ErpDeliveryOutbox)).scalar_one()
         assert outbox.status == "queued" and outbox.attempt_count == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+
+
+def test_p1_event_api_lists_only_scoped_unresolved_metadata_without_pii_or_rearm(db_session, monkeypatch):
+    store, _ = _make_deliverable_case(db_session, monkeypatch)
+    event = db_session.execute(select(LineWebhookEvent)).scalar_one()
+    event.status = "failed"
+    event.error_code = "P1_INTAKE_PROCESSING_FAILED"
+    db_session.commit()
+    principal = _principal(db_session, store.id)
+    app = _api_client(db_session)
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/v1/stores/{store.id}/p1-intake/events?status=failed",
+                headers=_auth_headers(principal),
+            )
+            denied = client.get(
+                f"/api/v1/stores/{store.id + 999}/p1-intake/events",
+                headers=_auth_headers(principal),
+            )
+            low_role_denied = client.get(
+                f"/api/v1/stores/{store.id}/p1-intake/events",
+                headers=_auth_headers({**principal, "role": "staff"}),
+            )
+        assert response.status_code == 200
+        row = response.json()["data"][0]
+        assert row["status"] == "failed"
+        assert row["errorCode"] == "P1_INTAKE_PROCESSING_FAILED"
+        assert "sourceUserHmac" not in row and "messageIdHmac" not in row
+        assert denied.status_code == 403
+        assert low_role_denied.status_code == 403
+        assert db_session.execute(select(Order)).scalars().all() == []
+        assert db_session.execute(select(Customer)).scalars().all() == []
     finally:
         app.dependency_overrides.clear()

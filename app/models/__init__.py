@@ -380,6 +380,7 @@ class LineWebhookEvent(Base):
     occurred_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
     error_code: Mapped[Optional[str]] = mapped_column(String(100))
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

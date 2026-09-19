@@ -1,214 +1,38 @@
-"""LINE Webhook Worker（WO-002：AI 抄單接通）：pre-filter → LLM 解析 → 建單寫 DB → 回覆。
+"""LINE inbound worker: P1 event-ledger intake and human review only.
 
-設計邊界：
-- v0 一人一店（快照 §九）：order 歸屬 settings.default_store_id，user_id = 該店 owner。
-  找不到 store 或 owner → fail-closed（不建孤兒單、不建到錯店）。多店路由見 WO-007。
-- 去重：orders.line_event_id UNIQUE。直接 INSERT，撞則 IntegrityError 攔（⛔ 不 check-then-write）。
-- 價格只取店家型錄；未命中商品不猜價，轉人工覆核。
-- 信心、型錄、數量與原文證據任一未通過 → fail-closed（不建單，只通知）。
-- LLM/LINE HTTP、DB 需真環境；沙箱以注入 db + mock provider 驗邏輯層。
+Every inbound LINE event must first have been signature-verified and claimed from
+the existing P1 ``LineWebhookEvent`` ledger. This worker only creates the
+existing P1 ``needs_human_review`` case (and, where eligible, a *blocked* ERP
+outbox draft). It never creates a local Customer or Order, and it never
+confirms a sale or dispatches ERP delivery.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 import httpx
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
-from app.models import Customer, Store, User
-from app.services import order_risk_service, order_service, p1_intake_service, product_service
+from app.services import order_risk_service, p1_intake_service, product_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
 def _get_text_from_event(event: Dict[str, Any]) -> Optional[str]:
-    """從 LINE event 取出文字訊息；非文字訊息回 None（pre-filter）。"""
-    msg = event.get("message", {})
-    if msg.get("type") == "text":
-        return msg.get("text")
+    """Return text content only; non-text events remain controlled P1 cases."""
+    message = event.get("message", {})
+    if message.get("type") == "text":
+        return message.get("text")
     return None
 
 
-def _resolve_store_owner(db: Session, store_id: int) -> Tuple[Optional[Store], Optional[User]]:
-    """v0 一人一店：驗證 store 存在 + 取該店 owner。任一缺 → (None, None) fail-closed。"""
-    if not store_id:
-        logger.warning("default_store_id 未設定（=0），fail-closed，不建單")
-        return None, None
-    store = db.get(Store, store_id)
-    if store is None:
-        logger.warning("store_id=%s 不存在，fail-closed，不建單", store_id)
-        return None, None
-    owner = db.execute(
-        select(User).where(User.store_id == store_id, User.role == "owner")
-    ).scalars().first()
-    if owner is None:
-        logger.warning("store_id=%s 無 owner，fail-closed，不建單", store_id)
-        return None, None
-    return store, owner
-
-
-def _get_or_create_customer(
-    db: Session, store_id: int, line_user_id: Optional[str], name: Optional[str]
-) -> Optional[Customer]:
-    """依 (store_id, line_user_id) 取或建 customer；無 line_user_id 則不綁（回 None）。
-    customer 綁定 race 無害（最多重複一筆），故此處 check-then-create；
-    嚴格去重僅施於 order 的 line_event_id。"""
-    if not line_user_id:
-        return None
-    cust = db.execute(
-        select(Customer).where(
-            Customer.store_id == store_id, Customer.line_user_id == line_user_id
-        )
-    ).scalars().first()
-    if cust is not None:
-        return cust
-    cust = Customer(store_id=store_id, line_user_id=line_user_id, name=name or "LINE 客戶")
-    db.add(cust)
-    db.flush()
-    return cust
-
-
-async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
-    reply_token: Optional[str] = event.get("replyToken")
-    source = event.get("source", {})
-    user_id: Optional[str] = source.get("userId")
-    line_event_id: Optional[str] = event.get("webhookEventId")
-
-    if settings.p1_intake_enabled:
-        await _process_p1_event(db, event, llm, notif)
-        return
-
-    # pre-filter：只處理文字訊息
-    text = _get_text_from_event(event)
-    if not text:
-        logger.debug("skip non-text event type=%s", event.get("type"))
-        return
-
-    # v0 一人一店：解析歸屬 store + owner（fail-closed）
-    store, owner = _resolve_store_owner(db, settings.default_store_id)
-    if store is None or owner is None:
-        return
-
-    industry_type = store.industry_type or "ecom"
-
-    principal = {"user_id": owner.id, "store_id": store.id}
-
-    # LLM 解析
-    try:
-        result = await llm.extract_order(text=text, industry_type=industry_type)
-    except Exception as exc:  # noqa: BLE001 — 對外服務失敗一律降級通知
-        logger.error("LLM extract_order failed: %s", exc)
-        reason_code = getattr(exc, "reason_code", None)
-        if reason_code is None:
-            reason_code = "provider_timeout" if isinstance(
-                exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)
-            ) else "provider_error"
-        order_risk_service.audit_ai_decision(
-            db,
-            principal=principal,
-            extraction=None,
-            decision=order_risk_service.RiskDecision(
-                status="needs_review",
-                reasons=[reason_code],
-                threshold=settings.ai_confidence_threshold,
-            ),
-            source_text=text,
-        )
-        if reply_token and user_id:
-            await notif.send_message(
-                to=user_id, text="此筆內容需人工確認（原因：{}）。".format(reason_code), reply_token=reply_token
-            )
-        return
-
-    logger.info(
-        "ai_extraction confidence=%.2f industry=%s items=%d",
-        result.confidence_score, result.industry_type, len(result.items),
-    )
-
-    # 只以店家型錄帶價，不相信模型提供的價格。
-    priced = product_service.price_extracted_items(db, store.id, result.items)
-    decision = order_risk_service.evaluate_order_extraction(
-        db,
-        extraction=result,
-        priced_items=priced,
-        default_threshold=settings.ai_confidence_threshold,
-    )
-    order_risk_service.audit_ai_decision(
-        db,
-        principal=principal,
-        extraction=result,
-        decision=decision,
-        source_text=text,
-    )
-    if decision.status != "approved":
-        logger.warning(
-            "order extraction requires review: reasons=%s confidence=%.2f",
-            decision.reasons,
-            result.confidence_score,
-        )
-        if reply_token and user_id:
-            await notif.send_message(
-                to=user_id,
-                text="這筆內容需要人工確認，請補充商品名稱與數量，或請店家協助確認。",
-                reply_token=reply_token,
-            )
-        return
-
-    # 只有完成所有防禦檢查後才建立客戶資料與訂單。
-    customer = _get_or_create_customer(db, store.id, user_id, result.customer_name)
-
-    # 建單：單價來自型錄，去重靠 line_event_id UNIQUE。
-    base_extraction = result.raw or {
-        "confidence_score": result.confidence_score,
-        "industry_type": result.industry_type,
-    }
-    data = {
-        "items": [
-            {"product_name": p["product_name"], "quantity": p["quantity"],
-             "unit_price": int(p["unit_price_cents"])}
-            for p in priced
-        ],
-        "customer_id": customer.id if customer else None,
-        "customer_name": result.customer_name,
-        "customer_phone": result.customer_phone,
-        "channel": "line",
-        "line_event_id": line_event_id,
-        # 帶價快照：每行 matchedProductId / unitPriceCents（未命中皆 null），供前端與稽核。
-        "ai_extraction": {
-            **base_extraction,
-            "lines": [
-                {"productName": p["product_name"], "quantity": p["quantity"],
-                 "matchedProductId": p["matched_product_id"],
-                 "unitPriceCents": p["unit_price_cents"]}
-                for p in priced
-            ],
-        },
-    }
-    try:
-        order_service.create_order(db, principal, data)
-    except IntegrityError:
-        db.rollback()
-        logger.info("duplicate line_event_id=%s，skip（已建過單）", line_event_id)
-        return
-
-    # 回覆買家
-    if reply_token and user_id:
-        item_lines = "\n".join(
-            "- {} x{}".format(i.product_name, i.quantity) for i in result.items
-        )
-        reply_text = "已收到您的訂單：\n{}\n\n請稍候確認。".format(item_lines)
-        await notif.send_message(to=user_id, text=reply_text, reply_token=reply_token)
-
-
 async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_id: Optional[str]) -> None:
-    """未配置官方 Messaging channel 時不假裝可對客補問。"""
+    """Do not pretend to request clarification without an official configured channel."""
     if not (
         settings.p1_attachment_followup_enabled
         and settings.line_messaging_access_token
@@ -222,14 +46,15 @@ async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_i
             reply_token=reply_token,
             text="已收到附件。為避免辨識錯誤，請直接以文字提供訂購人、商品、數量、需要時間與特別要求。",
         )
-    except Exception:  # noqa: BLE001 - 通知不可用時保留人工覆核案例，不重試外部呼叫。
+    except Exception:  # noqa: BLE001 - Retain the review case; do not retry an external notification.
         logger.warning("P1 attachment follow-up unavailable; retained for human review")
 
 
 async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
-    """P1：只建立受控草稿／blocked outbox，絕不建立本地一般 Order 或 Customer。"""
+    """Create only an existing P1 human-review case for a claimed ledger event."""
     line_event_id = event.get("webhookEventId")
     if not isinstance(line_event_id, str) or not line_event_id:
+        logger.warning("LINE event missing webhookEventId; fail closed")
         return
     try:
         store = p1_intake_service.resolve_p1_store(db)
@@ -238,6 +63,8 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
         return
     source_event = p1_intake_service.claim_event(db, store_id=store.id, webhook_event_id=line_event_id)
     if source_event is None:
+        # Events are claimed only from the signed, deduplicated P1 ledger.
+        logger.info("LINE event is absent from or already claimed by P1 ledger: %s", line_event_id)
         return
 
     message = event.get("message") or {}
@@ -251,30 +78,43 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 db, store=store, source_event=source_event, media_type=message_type
             )
             await _safe_attachment_followup(notif, reply_token=reply_token, user_id=source_user_id)
-            p1_intake_service.finish_event(db, source_event)
+            p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
         text = _get_text_from_event(event)
         if not text:
-            # 非訂單文字、貼圖、位置等事件也不會變成訂單。
+            # Stickers, locations, and other unsupported events never become orders.
             p1_intake_service.create_text_case(
                 db,
                 store=store,
                 source_event=source_event,
                 source_text="",
                 source_user_id=source_user_id,
-                result=type("EmptyExtraction", (), {"items": [], "customer_name": None, "customer_phone": None, "confidence_score": 0.0, "provider_name": "", "raw": {}})(),
+                result=type(
+                    "EmptyExtraction",
+                    (),
+                    {
+                        "items": [],
+                        "customer_name": None,
+                        "customer_phone": None,
+                        "confidence_score": 0.0,
+                        "provider_name": "",
+                        "raw": {},
+                    },
+                )(),
                 decision_status="needs_review",
                 decision_reasons=["unsupported_message_type"],
             )
-            p1_intake_service.finish_event(db, source_event)
+            p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
         try:
             result = await llm.extract_order(text=text, industry_type=store.industry_type or "ecom")
-        except Exception as exc:  # noqa: BLE001 - 外部解析失敗只建立人工覆核草稿。
+        except Exception as exc:  # noqa: BLE001 - External parsing failure stays human review.
             reason = getattr(exc, "reason_code", None) or (
-                "provider_timeout" if isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)) else "provider_error"
+                "provider_timeout"
+                if isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError))
+                else "provider_error"
             )
             p1_intake_service.create_text_case(
                 db,
@@ -282,11 +122,22 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 source_event=source_event,
                 source_text=text,
                 source_user_id=source_user_id,
-                result=type("EmptyExtraction", (), {"items": [], "customer_name": None, "customer_phone": None, "confidence_score": 0.0, "provider_name": "", "raw": {}})(),
+                result=type(
+                    "EmptyExtraction",
+                    (),
+                    {
+                        "items": [],
+                        "customer_name": None,
+                        "customer_phone": None,
+                        "confidence_score": 0.0,
+                        "provider_name": "",
+                        "raw": {},
+                    },
+                )(),
                 decision_status="needs_review",
                 decision_reasons=[reason],
             )
-            p1_intake_service.finish_event(db, source_event)
+            p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
         priced = product_service.price_extracted_items(db, store.id, result.items)
@@ -306,24 +157,43 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
             decision_status=decision.status,
             decision_reasons=decision.reasons,
         )
-        p1_intake_service.finish_event(db, source_event)
+        p1_intake_service.finish_event(db, source_event, store_id=store.id)
     except p1_intake_service.P1IntakeConfigurationError as exc:
         db.rollback()
         source_event = db.get(type(source_event), source_event.id)
         if source_event is not None:
-            p1_intake_service.finish_event(db, source_event, error_code=str(exc))
+            p1_intake_service.finish_event(
+                db, source_event, store_id=store.id, error_code=str(exc)
+            )
         logger.error("P1 intake failed closed: %s", exc)
     except Exception:
         db.rollback()
         source_event = db.get(type(source_event), source_event.id)
         if source_event is not None:
-            p1_intake_service.finish_event(db, source_event, error_code="P1_INTAKE_PROCESSING_FAILED")
-        logger.exception("P1 intake processing failed")
+            p1_intake_service.finish_event(
+                db,
+                source_event,
+                store_id=store.id,
+                error_code="P1_INTAKE_PROCESSING_FAILED",
+            )
+        logger.error("P1 intake processing failed; retained for human review")
+
+
+async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
+    """All inbound LINE events follow the mandatory P1 ledger and review path."""
+    if not settings.p1_intake_enabled:
+        logger.error("P1 intake is disabled; queued LINE event remains fail closed")
+        return
+    await _process_p1_event(db, event, llm, notif)
 
 
 async def process_webhook_event(payload: Dict[str, Any], db: Optional[Session] = None) -> None:
-    """Worker 主流程：解析一個 LINE Webhook payload。
-    db 可注入（測試傳真 test session）；否則自開 SessionLocal（正式 RQ 路徑）。"""
+    """Process a queued payload only from its existing signed P1 ledger entries.
+
+    ``db`` is injectable for PostgreSQL-backed focused tests; production workers
+    use ``SessionLocal``. The webhook route verifies the LINE signature and
+    records P1 events before queueing this function.
+    """
     from app.providers import get_llm_provider, get_notification_provider
 
     llm = get_llm_provider()
@@ -341,5 +211,5 @@ async def process_webhook_event(payload: Dict[str, Any], db: Optional[Session] =
 
 
 def run_worker(payload: Dict[str, Any]) -> None:
-    """同步入口（供 RQ worker 呼叫）：RQ 不 await 協程，故此處用 asyncio.run 執行 async body。"""
+    """Synchronous RQ entry point for the mandatory P1 intake worker."""
     asyncio.run(process_webhook_event(payload))

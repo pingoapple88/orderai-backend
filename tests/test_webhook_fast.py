@@ -1,7 +1,4 @@
-"""情境一：Webhook 只入列、立即回 200，不做 LLM/DB 重活。
-
-PR-3 更新：加入有效 X-Line-Signature，繞過簽章驗證（monkeypatch channel_secret 為空）。
-"""
+"""LINE webhook returns quickly while mandatory P1 configuration fails closed."""
 import time
 from fastapi.testclient import TestClient
 
@@ -11,7 +8,7 @@ from app.providers.queue_memory import InMemoryQueue
 from app.main import app
 
 
-def test_webhook_enqueues_and_returns_200_fast(monkeypatch):
+def test_webhook_fails_closed_fast_when_mandatory_p1_is_disabled(monkeypatch):
     # 將 channel_secret 設為空，讓 verify_line_signature 接受任何空簽章
     # 注意：verify_line_signature 空 secret 回 False，所以改用有效簽章
     import base64, hashlib, hmac, json
@@ -36,7 +33,6 @@ def test_webhook_enqueues_and_returns_200_fast(monkeypatch):
     )
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
-    assert resp.status_code == 200
-    assert q.depth() == 1
-    assert q.pop()["message"]["text"] == "肉乾+2"
+    assert resp.status_code == 503
+    assert q.depth() == 0
     assert elapsed_ms < 500  # 放寬到 500ms（沙箱環境）
