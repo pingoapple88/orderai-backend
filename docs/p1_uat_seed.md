@@ -33,7 +33,7 @@ python scripts/p1_uat_seed.py --clear
 
 `scripts/p1_uat_acceptance.py --run` 只可在已完成合成基準的隔離 UAT 執行，並須同時具備 `P1_UAT_DIRECT_ACCEPTANCE_ENABLED=true`、`P1_INTAKE_ENABLED=true`、`P1_UAT_DELIVERY_ENABLED=true`、HTTP ERP adapter、精準 HTTPS host allowlist 與既有 UAT marker。它以一筆固定識別的合成文字事件，依序走既有 `create_text_case`、人工覆核與 `dispatch_outbox`；不得透過 LINE webhook 或直接寫入 ERP 資料庫。
 
-同一固定事件若已成功關閉並標記 delivered，重跑只回傳既有結果，不會再次送件。任何未完成、失敗或非預期狀態均會 fail-closed，不會自動重試。`--verify` 僅讀取 OrderAI UAT 狀態，確認只有一筆合成直接事件與一筆 delivered outbox，且正式 Customer、Order、付款、庫存預留、出貨、發票及 LINE 訊息副作用皆為零；ERP 端對應結果必須另以其既有唯讀驗證入口核對。
+同一固定事件若已成功關閉並標記 delivered，重跑只回傳既有結果，不會再次送件。任何未完成、失敗或非預期狀態均會 fail-closed，不會自動重試。`--run`、`--status`、`--resume-queued-no-attempt` 與 `--verify` 的輸出以固定合成 event 的 SHA-256 作為可比對證據，不回傳 company、store、conversation 或 outbox 的資料庫識別碼。`--verify` 僅讀取 OrderAI UAT 狀態，確認只有一筆合成直接事件與一筆 delivered outbox，且正式 Customer、Order、付款、庫存預留、出貨、發票及 LINE 訊息副作用皆為零；ERP 端對應結果必須另以其既有唯讀驗證入口核對。
 
 ## 簽章 LINE webhook 人工覆核驗收
 

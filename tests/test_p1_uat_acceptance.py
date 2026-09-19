@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from types import SimpleNamespace
 
 import pytest
@@ -113,8 +114,9 @@ def test_status_is_read_only_and_exposes_no_source_payload(db_session, monkeypat
     status = acceptance.status_p1_uat_acceptance(db_session)
 
     assert status == {
-        "company_id": 1,
-        "store_id": 1,
+        "event_id_sha256": hashlib.sha256(
+            b"qingquan-p1-uat-direct-e2e-v1"
+        ).hexdigest(),
         "exact_synthetic_event_found": True,
         "case_state": "awaiting_erp_delivery",
         "case_state_version": 2,
@@ -134,6 +136,46 @@ def test_status_is_read_only_and_exposes_no_source_payload(db_session, monkeypat
     assert not db_session.new and not db_session.dirty and not db_session.deleted
     assert db_session.get(IntakeConversation, case.id).state == "awaiting_erp_delivery"
     assert db_session.get(ErpDeliveryOutbox, outbox.id).attempt_count == 0
+
+
+def test_safe_summary_redacts_database_identifiers_and_keeps_stable_event_evidence():
+    from app.p1_uat_acceptance import P1UatAcceptanceResult
+
+    summary = P1UatAcceptanceResult(
+        company_id=701,
+        store_id=702,
+        conversation_id=703,
+        outbox_id=704,
+        outbox_status="delivered",
+        replay_blocked=True,
+        reused=False,
+    ).safe_summary()
+
+    assert summary == {
+        "synthetic_only": True,
+        "event_id_sha256": hashlib.sha256(
+            b"qingquan-p1-uat-direct-e2e-v1"
+        ).hexdigest(),
+        "outbox_status": "delivered",
+        "replay_blocked": True,
+        "reused": False,
+        "resumed": False,
+        "replay_dispatch_not_attempted": False,
+        "line_webhook_enabled": False,
+        "line_message_sent": False,
+        "formal_customer_created": False,
+        "formal_order_created": False,
+        "payment_created": False,
+        "reservation_created": False,
+        "shipment_created": False,
+        "invoice_created": False,
+    }
+    assert not {
+        "company_id",
+        "store_id",
+        "conversation_id",
+        "outbox_id",
+    }.intersection(summary)
 
 
 def test_resume_calls_existing_dispatch_once_for_exact_zero_attempt_case(db_session, monkeypatch):
