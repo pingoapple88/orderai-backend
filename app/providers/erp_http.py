@@ -1,7 +1,7 @@
-"""雲鼎 ERP 的受控 HTTP Adapter。
+"""Existing CloudDing ERP HTTP Adapter.
 
-此類別只實作可替換的簽章請求契約；預設 factory 仍回傳 blocked provider，且本檔
-不會啟動 outbox worker 或自行傳送資料。端點、服務帳號、密鑰與逾時均由環境注入。
+This class remains unrelated to Jiezhou.  Its configured transport is unchanged;
+Jiezhou has no HTTP implementation in this branch because its contract is unknown.
 """
 from __future__ import annotations
 
@@ -22,12 +22,13 @@ from app.core.interfaces.erp_ingest import (
     IErpIngestProvider,
     PendingConfirmationOrderRequest,
     PendingCustomerRequest,
+    PendingOrderIntent,
 )
 
 
 @dataclass
 class CloudDingErpIngestProvider(IErpIngestProvider):
-    """使用 P1 service-to-service HMAC 的雲鼎待確認資料 Adapter。"""
+    """使用 P1 service-to-service HMAC 的既有雲鼎待確認資料 Adapter。"""
 
     base_url: str
     service_id: str
@@ -53,9 +54,7 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
         timestamp = str(int(time.time()))
         nonce = secrets.token_urlsafe(24)
         canonical = b"\n".join([self.service_id.encode(), timestamp.encode(), nonce.encode(), body])
-        signature = hmac.new(
-            self.ingress_hmac_secret.encode(), canonical, hashlib.sha256
-        ).hexdigest()
+        signature = hmac.new(self.ingress_hmac_secret.encode(), canonical, hashlib.sha256).hexdigest()
         return {
             "Content-Type": "application/json",
             "X-P1-Service-Id": self.service_id,
@@ -67,9 +66,8 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
     async def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_ready()
         body = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        headers = self._headers(body)
         async with httpx.AsyncClient(timeout=self.timeout_seconds, transport=self.transport) as client:
-            response = await client.post(f"{self.base_url.rstrip('/')}{path}", content=body, headers=headers)
+            response = await client.post(f"{self.base_url.rstrip('/')}{path}", content=body, headers=self._headers(body))
         if response.status_code not in {200, 201}:
             raise ErpIngestBlockedError("ERP_INGEST_REJECTED", f"ERP 回應狀態：{response.status_code}")
         try:
@@ -95,8 +93,6 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
                 "contact_authorized": request.contact_authorized,
             },
         )
-        # 後續待確認訂單契約需要 ERP 的 pending_customer_id 數字值；不可包裝
-        # 成展示字串，否則送件編排無法安全地建立關聯。
         return ErpIngestResult(provider="cloud_ding_http", reference=str(data["id"]), status="accepted")
 
     async def submit_pending_confirmation_order(
@@ -114,10 +110,7 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
                 "special_request": request.special_request,
                 "idempotency_key": request.idempotency_key,
                 "source_event_id": request.source_event_id,
-                "items": [
-                    {"product_id": item.product_id, "quantity": item.quantity}
-                    for item in request.items
-                ],
+                "items": [{"product_id": item.product_id, "quantity": item.quantity} for item in request.items],
             },
         )
         reference = data.get("reference_no") or f"pending_order:{data['id']}"
@@ -126,5 +119,13 @@ class CloudDingErpIngestProvider(IErpIngestProvider):
     async def submit_pending_order(self, request: ErpIngestRequest) -> ErpIngestResult:
         raise ErpIngestBlockedError(
             "ERP_CONTRACT_MISMATCH",
-            "此 Adapter 僅支援 P1 待確認客戶與待確認訂單，不能送出一般訂單。",
+            "此 Adapter 僅支援既有 P1 待確認客戶與待確認訂單，不能送出一般訂單。",
+        )
+
+    async def submit_pending_confirmation_intent(
+        self, request: PendingOrderIntent
+    ) -> ErpIngestResult:
+        raise ErpIngestBlockedError(
+            "ERP_CONTRACT_MISMATCH",
+            "CloudDing adapter 不可處理捷州 provider-neutral intent；不得轉譯其他 ERP 契約。",
         )
