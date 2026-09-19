@@ -30,11 +30,10 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from app.core.interfaces.erp_ingest import (  # noqa: E402
     ErpIngestBlockedError,
     ErpIngestResult,
-    PendingOrderContent,
     PendingOrderIntent,
-    PendingOrderItem,
     PendingOrderMappingConfig,
 )
+from app.core.interfaces.erp_contract_fixture import build_synthetic_pending_order_contract  # noqa: E402
 from app.core.interfaces.erp_traceability import (  # noqa: E402
     build_pending_order_trace_manifest,
     pending_order_trace_validation_reason,
@@ -59,29 +58,9 @@ def load_synthetic_fixture(path: Path) -> dict[str, Any]:
 def build_provider_neutral_contract(
     fixture: Mapping[str, Any],
 ) -> tuple[PendingOrderMappingConfig, PendingOrderIntent]:
-    """Build neutral contract types without assuming any Jiezhou formal fields."""
+    """Strictly validate a synthetic fixture, then build neutral contract types."""
 
-    mapping_config = fixture["mapping_config"]
-    raw_intent = fixture["intent"]
-    content = raw_intent["content"]
-    config = PendingOrderMappingConfig(**mapping_config)
-    intent = PendingOrderIntent(
-        tenant_id=raw_intent["tenant_id"],
-        company_id=raw_intent["company_id"],
-        sales_location_id=raw_intent["sales_location_id"],
-        source_event_id=raw_intent["source_event_id"],
-        content=PendingOrderContent(
-            buyer_name=content["buyer_name"],
-            buyer_contact_reference=content["buyer_contact_reference"],
-            requested_for=content["requested_for"],
-            special_request=content["special_request"],
-            items=[PendingOrderItem(**item) for item in content["items"]],
-        ),
-        product_mapping=raw_intent["product_mapping"],
-        idempotency_key=raw_intent["idempotency_key"],
-        audit_reference=raw_intent["audit_reference"],
-    )
-    return config, intent
+    return build_synthetic_pending_order_contract(fixture)
 
 
 def _require_result(

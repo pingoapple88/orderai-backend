@@ -22,7 +22,7 @@ JIEZHOU_CONTRACT_REFERENCE=
 
 `PendingOrderIntent` 只含：tenant、company、sales location、source event、五欄內容（buyer name、受控 contact reference、requested-for、special request、items）、商品 mapping、idempotency key 與 audit reference。它刻意排除 payment、inventory、shipment、invoice 與 formal order 欄位。
 
-合成 fixture 位於 `tests/fixtures/jiezhou_pending_order_contract_v1.json`，版本為 `jiezhou-pending-order-synthetic-v1`；內容均為 synthetic 值，且標記 `contract_status: [TODO: 待人工確認]`。deterministic fake 僅建立 `pending` 或 `manual_review` 結果；相同 idempotency key 回傳同一結果。缺 mapping、company／sales-location scope 不符、timeout 或 unknown outcome 都進 manual review，不建立任何正式交易副作用。
+合成 fixture 位於 `tests/fixtures/jiezhou_pending_order_contract_v1.json`，版本為 `jiezhou-pending-order-synthetic-v1`；內容均為 synthetic 值，且標記 `contract_status: [TODO: 待人工確認]`。`app.core.interfaces.erp_contract_fixture.build_synthetic_pending_order_contract` 是可供未來 ERP fake 共用的離線嚴格驗證閘門：每一層欄位均採 allowlist，未知欄位、payment／inventory／shipment／invoice／formal_order 欄位、非 synthetic 版本、錯誤狀態、空 mapping 與 scope/mapping 不一致均會以受控錯誤碼拒絕；不讀取設定、不建立 provider、也不做網路呼叫。deterministic fake 僅建立 `pending` 或 `manual_review` 結果；相同 idempotency key 回傳同一結果。缺 mapping、company／sales-location scope 不符、timeout 或 unknown outcome 都進 manual review，不建立任何正式交易副作用。
 
 ## 捷州 owner 最小契約輸入清單
 
