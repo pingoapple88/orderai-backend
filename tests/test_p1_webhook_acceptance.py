@@ -217,6 +217,7 @@ def test_acceptance_is_safely_repeatable_with_one_fixed_ledger_event_and_case(db
     [
         ("ENVIRONMENT", "production", "P1_WEBHOOK_ACCEPTANCE_PRODUCTION_ENVIRONMENT_REJECTED"),
         ("P1_WEBHOOK_ACCEPTANCE_API_BASE_URL", "https://api.orderai.merchcore.ai", "P1_WEBHOOK_ACCEPTANCE_PRODUCTION_HOST_REJECTED"),
+        ("P1_WEBHOOK_ACCEPTANCE_API_BASE_URL", "https://orderai-production-a1b2.up.railway.app", "P1_WEBHOOK_ACCEPTANCE_PRODUCTION_HOST_REJECTED"),
     ],
 )
 def test_acceptance_rejects_production_environment_or_host_before_any_http_call(monkeypatch, name, value, reason):
@@ -252,4 +253,3 @@ def test_acceptance_rejects_nonzero_formal_side_effect_baseline_before_any_http_
 
     with pytest.raises(P1WebhookAcceptanceBlocked, match="P1_WEBHOOK_ACCEPTANCE_BASELINE_NOT_EMPTY"):
         run_p1_webhook_acceptance(session_factory=lambda: db_session, post=must_not_post)
-

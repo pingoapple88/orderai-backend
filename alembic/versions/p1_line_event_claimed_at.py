@@ -25,4 +25,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # 回退順序強制為「先回退應用程式、再回退此 migration」；新版 readiness
+    # 仍讀取 claimed_at，若先 drop column 將 fail-closed 造成查詢錯誤。
+    # claimed_at 是操作追蹤欄位，drop 後不可復原；完整步驟見 docs/p1_rollback_runbook.md。
     op.drop_column("line_webhook_events", "claimed_at")

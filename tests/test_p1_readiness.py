@@ -157,6 +157,8 @@ def test_p1_readiness_api_returns_scoped_safe_counts_without_side_effects(db_ses
             "unresolvedEventCounts": {"queued": 1, "processing": 1, "failed": 1},
             "staleProcessingCount": 0,
             "hasStaleProcessing": False,
+            "staleQueuedCount": 0,
+            "hasStaleQueued": False,
             "reasonCodes": [],
         }
         serialized = str(response.json())
@@ -235,6 +237,37 @@ def test_p1_readiness_production_missing_key_is_not_ready_and_never_enables_p1(d
         assert p1_readiness_service.settings.p1_intake_enabled is True
         assert p1_readiness_service.settings.p1_isolated_delivery_enabled is False
         assert p1_readiness_service.settings.p1_uat_delivery_enabled is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_p1_readiness_marks_stale_queued_events_not_ready_without_rearming(db_session, monkeypatch):
+    user, company_a, store_a, _, _ = _seed_scopes(db_session)
+    _configure_safe_p1(monkeypatch)
+    monkeypatch.setattr(p1_readiness_service.providers, "get_queue_for_readiness", _NoSideEffectQueue)
+    stale = _event(
+        company_id=company_a.id,
+        store_id=store_a.id,
+        event_id="queued-before-worker-crash",
+        status="queued",
+    )
+    stale.created_at = datetime.now(timezone.utc) - timedelta(seconds=301)
+    db_session.add(stale)
+    db_session.commit()
+    app = _api_client(db_session)
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/v1/stores/{store_a.id}/p1-intake/readiness",
+                headers=_headers(user.id, store_a.id),
+            )
+        data = response.json()["data"]
+        assert response.status_code == 200
+        assert data["ready"] is False
+        assert data["staleQueuedCount"] == 1
+        assert data["hasStaleQueued"] is True
+        assert "P1_STALE_QUEUED_EVENTS" in data["reasonCodes"]
+        assert db_session.get(LineWebhookEvent, stale.id).status == "queued"
     finally:
         app.dependency_overrides.clear()
 
@@ -360,6 +393,8 @@ def test_p1_readiness_reports_only_scoped_stale_processing_without_retrying(db_s
         assert data["ready"] is False
         assert data["staleProcessingCount"] == 1
         assert data["hasStaleProcessing"] is True
+        assert data["staleQueuedCount"] == 0
+        assert data["hasStaleQueued"] is False
         assert data["reasonCodes"] == ["P1_STALE_PROCESSING_EVENTS"]
         serialized = str(response.json())
         for forbidden in (
@@ -380,6 +415,8 @@ def test_p1_readiness_reports_only_scoped_stale_processing_without_retrying(db_s
             "unresolvedEventCounts",
             "staleProcessingCount",
             "hasStaleProcessing",
+            "staleQueuedCount",
+            "hasStaleQueued",
             "reasonCodes",
         }
         assert [

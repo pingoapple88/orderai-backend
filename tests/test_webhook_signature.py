@@ -80,6 +80,7 @@ def test_unhandled_line_webhook_error_returns_generic_response_without_traceback
     """Unexpected P1 failures must not expose traceback, SQL, PII, or settings."""
     monkeypatch.setattr(webhook.settings, "line_messaging_channel_secret", "test-secret")
     monkeypatch.setattr(webhook.settings, "p1_intake_enabled", True)
+    monkeypatch.setattr(webhook.settings, "p1_line_destination", "Utest")
 
     class _Session:
         def close(self):

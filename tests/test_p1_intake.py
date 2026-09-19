@@ -83,6 +83,8 @@ def _configure_p1(monkeypatch, store_id, *, erp_product_map_json="{}"):
     monkeypatch.setattr(webhook.settings, "p1_pii_encryption_key", _FERNET_KEY)
     monkeypatch.setattr(line_worker.settings, "p1_identity_hmac_key", "p1-test-hmac")
     monkeypatch.setattr(webhook.settings, "p1_identity_hmac_key", "p1-test-hmac")
+    monkeypatch.setattr(line_worker.settings, "p1_line_destination", "Uofficial")
+    monkeypatch.setattr(webhook.settings, "p1_line_destination", "Uofficial")
     monkeypatch.setattr(line_worker.settings, "p1_erp_target_company_id", 77)
     monkeypatch.setattr(webhook.settings, "p1_erp_target_company_id", 77)
     monkeypatch.setattr(line_worker.settings, "p1_erp_sales_location_id", 91)
@@ -262,6 +264,26 @@ def test_multi_event_partial_enqueue_failure_marks_only_unqueued_suffix_for_offi
     assert db_session.execute(select(func.count(Customer.id))).scalar_one() == 0
 
 
+def test_same_payload_duplicate_webhook_event_id_enqueues_once(db_session, monkeypatch):
+    _, store = _seed(db_session)
+    _configure_p1(monkeypatch, store.id)
+    monkeypatch.setattr(webhook.settings, "line_messaging_channel_secret", "test-secret")
+    Session = sessionmaker(bind=db_session.get_bind(), autoflush=False, autocommit=False, future=True)
+    monkeypatch.setattr(webhook, "SessionLocal", Session)
+    queue = InMemoryQueue()
+    providers.set_queue(queue)
+    duplicate = _event(event_id="duplicate-in-payload")
+    body = json.dumps(_payload(duplicate, duplicate)).encode()
+    response = TestClient(__import__("app.main", fromlist=["app"]).app).post(
+        "/api/v1/webhooks/line",
+        content=body,
+        headers={"X-Line-Signature": _signature(body, "test-secret")},
+    )
+    assert response.status_code == 200
+    assert db_session.execute(select(func.count(LineWebhookEvent.id))).scalar_one() == 1
+    assert queue.depth() == 1
+
+
 
 def test_processing_event_is_traceable_but_not_rearmed_by_signed_redelivery(db_session, monkeypatch):
     _, store = _seed(db_session)
@@ -293,6 +315,25 @@ def test_invalid_signature_creates_no_p1_ledger_or_queue(db_session, monkeypatch
     from app.main import app
     response = TestClient(app).post("/api/v1/webhooks/line", content=body, headers={"X-Line-Signature": "bad"})
     assert response.status_code == 401
+    assert db_session.execute(select(func.count(LineWebhookEvent.id))).scalar_one() == 0
+    assert queue.depth() == 0
+
+
+def test_destination_mismatch_creates_no_p1_ledger_or_queue(db_session, monkeypatch):
+    _, store = _seed(db_session)
+    _configure_p1(monkeypatch, store.id)
+    monkeypatch.setattr(webhook.settings, "line_messaging_channel_secret", "test-secret")
+    Session = sessionmaker(bind=db_session.get_bind(), autoflush=False, autocommit=False, future=True)
+    monkeypatch.setattr(webhook, "SessionLocal", Session)
+    queue = InMemoryQueue()
+    providers.set_queue(queue)
+    body = json.dumps({"destination": "Uwrong", "events": [_event()]}).encode()
+    response = TestClient(__import__("app.main", fromlist=["app"]).app).post(
+        "/api/v1/webhooks/line",
+        content=body,
+        headers={"X-Line-Signature": _signature(body, "test-secret")},
+    )
+    assert response.status_code == 503
     assert db_session.execute(select(func.count(LineWebhookEvent.id))).scalar_one() == 0
     assert queue.depth() == 0
 

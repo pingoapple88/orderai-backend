@@ -204,6 +204,8 @@ class P1ReadinessOut(CamelModel):
     unresolved_event_counts: P1UnresolvedEventCountsOut
     stale_processing_count: int
     has_stale_processing: bool
+    stale_queued_count: int
+    has_stale_queued: bool
     reason_codes: List[str] = []
 
 

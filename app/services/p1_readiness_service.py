@@ -164,6 +164,31 @@ def _stale_processing_count(
     )
 
 
+def _stale_queued_count(
+    db: Session, *, store_id: int, company_id: int, stale_after_seconds: int
+) -> int:
+    """Count durable-but-never-claimed events without changing or retrying them."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
+    return int(
+        db.execute(
+            select(func.count(LineWebhookEvent.id))
+            .join(
+                Store,
+                (Store.id == LineWebhookEvent.store_id)
+                & (Store.company_id == LineWebhookEvent.company_id),
+            )
+            .where(
+                LineWebhookEvent.store_id == store_id,
+                LineWebhookEvent.company_id == company_id,
+                Store.id == store_id,
+                Store.company_id == company_id,
+                LineWebhookEvent.status == "queued",
+                LineWebhookEvent.created_at < cutoff,
+            )
+        ).scalar_one()
+    )
+
+
 def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
     """Evaluate P1 readiness without changing database, queue, or delivery state.
 
@@ -204,6 +229,7 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
 
     unresolved_event_counts = {status: 0 for status in _UNRESOLVED_STATUSES}
     stale_processing_count = 0
+    stale_queued_count = 0
     if company_id is not None:
         unresolved_event_counts = _unresolved_event_counts(
             db, store_id=store_id, company_id=company_id
@@ -215,9 +241,18 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
                 company_id=company_id,
                 stale_after_seconds=stale_after_seconds,
             )
+            stale_queued_count = _stale_queued_count(
+                db,
+                store_id=store_id,
+                company_id=company_id,
+                stale_after_seconds=stale_after_seconds,
+            )
     has_stale_processing = stale_processing_count > 0
+    has_stale_queued = stale_queued_count > 0
     if has_stale_processing:
         reason_codes.append("P1_STALE_PROCESSING_EVENTS")
+    if has_stale_queued:
+        reason_codes.append("P1_STALE_QUEUED_EVENTS")
 
     checks_ready = all(
         (
@@ -229,6 +264,7 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
             queue_provider_available,
             erp_delivery_blocked,
             not has_stale_processing,
+            not has_stale_queued,
         )
     )
     production_incomplete = settings.environment.strip().lower() == "production" and not checks_ready
@@ -248,5 +284,7 @@ def get_p1_readiness(db: Session, *, store_id: int) -> dict[str, Any]:
         "unresolved_event_counts": unresolved_event_counts,
         "stale_processing_count": stale_processing_count,
         "has_stale_processing": has_stale_processing,
+        "stale_queued_count": stale_queued_count,
+        "has_stale_queued": has_stale_queued,
         "reason_codes": sorted(set(reason_codes)),
     }

@@ -74,7 +74,11 @@ def _host_is_production(host: str) -> bool:
     if host in _KNOWN_PRODUCTION_HOSTS:
         return True
     labels = [label for label in host.split(".") if label]
-    return any(label in {"prod", "production", "live"} for label in labels)
+    return any(
+        token in label
+        for label in labels
+        for token in {"prod", "production", "live"}
+    )
 
 
 def _parse_api_target(value: str) -> tuple[str, str]:
