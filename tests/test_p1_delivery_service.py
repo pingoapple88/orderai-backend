@@ -279,12 +279,17 @@ def test_p1_event_api_lists_only_scoped_unresolved_metadata_without_pii_or_rearm
                 f"/api/v1/stores/{store.id + 999}/p1-intake/events",
                 headers=_auth_headers(principal),
             )
+            low_role_denied = client.get(
+                f"/api/v1/stores/{store.id}/p1-intake/events",
+                headers=_auth_headers({**principal, "role": "staff"}),
+            )
         assert response.status_code == 200
         row = response.json()["data"][0]
         assert row["status"] == "failed"
         assert row["errorCode"] == "P1_INTAKE_PROCESSING_FAILED"
         assert "sourceUserHmac" not in row and "messageIdHmac" not in row
         assert denied.status_code == 403
+        assert low_role_denied.status_code == 403
         assert db_session.execute(select(Order)).scalars().all() == []
         assert db_session.execute(select(Customer)).scalars().all() == []
     finally:

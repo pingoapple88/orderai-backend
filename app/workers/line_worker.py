@@ -176,7 +176,7 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 store_id=store.id,
                 error_code="P1_INTAKE_PROCESSING_FAILED",
             )
-        logger.exception("P1 intake processing failed")
+        logger.error("P1 intake processing failed; retained for human review")
 
 
 async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> None:

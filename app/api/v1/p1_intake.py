@@ -42,7 +42,7 @@ def list_p1_cases(
 def list_unresolved_p1_events(
     store_id: int,
     status: Optional[str] = None,
-    principal: dict = Depends(verify_store_access),
+    _principal: dict = Depends(require_store_role("owner", "manager")),
     db: Session = Depends(get_db),
 ):
     """Expose only non-terminal event metadata for manual P1 incident follow-up."""
