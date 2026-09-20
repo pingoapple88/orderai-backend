@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from typing import Annotated
 
-import secrets
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import HTMLResponse
@@ -52,11 +50,11 @@ def _require_portal_operator(
     settings = get_settings()
     expected_username = settings.p1_uat_portal_basic_username
     expected_password = settings.p1_uat_portal_basic_password
-    username_matches = secrets.compare_digest(
-        credentials.username if credentials else "", expected_username or ""
+    username_matches = p1_uat_portal_service.constant_time_secret_equals(
+        credentials.username if credentials else "", expected_username
     )
-    password_matches = secrets.compare_digest(
-        credentials.password if credentials else "", expected_password or ""
+    password_matches = p1_uat_portal_service.constant_time_secret_equals(
+        credentials.password if credentials else "", expected_password
     )
     if not (
         settings.p1_uat_portal_enabled

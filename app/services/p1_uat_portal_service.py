@@ -61,6 +61,17 @@ class P1UatPortalConflict(RuntimeError):
     """指定案例不再是可維持 pending 的安全人工覆核狀態。"""
 
 
+def constant_time_secret_equals(supplied: Optional[str], expected: Optional[str]) -> bool:
+    """以 UTF-8 bytes 做 constant-time 比對；無效 Unicode 一律拒絕而不拋 500。"""
+    try:
+        return secrets.compare_digest(
+            (supplied or "").encode("utf-8"),
+            (expected or "").encode("utf-8"),
+        )
+    except UnicodeError:
+        return False
+
+
 def assert_portal_environment() -> None:
     """HTML 頁面與 JSON action 共用的 fail-closed staging 環境守門。"""
     allowed = (
@@ -76,7 +87,7 @@ def assert_portal_access(access_code: Optional[str]) -> None:
     """所有 JSON action 共用的 fail-closed staging 與 constant-time code 守門。"""
     assert_portal_environment()
     expected = settings.p1_uat_portal_access_code
-    code_matches = secrets.compare_digest(access_code or "", expected or "")
+    code_matches = constant_time_secret_equals(access_code, expected)
     allowed = (
         bool(expected)
         and bool(access_code)

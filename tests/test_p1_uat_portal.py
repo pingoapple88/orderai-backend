@@ -145,6 +145,30 @@ def test_all_json_actions_reject_missing_access_code_before_database_action(db_s
         app.dependency_overrides.clear()
 
 
+def test_non_ascii_secret_settings_fail_closed_without_internal_error(db_session, monkeypatch):
+    access_code = _configure_portal(monkeypatch)
+    app, client = _client(db_session)
+    settings = p1_uat_portal_service.settings
+    try:
+        assert p1_uat_portal_service.constant_time_secret_equals("測試", "測試") is True
+        assert p1_uat_portal_service.constant_time_secret_equals("測試", "不同") is False
+
+        monkeypatch.setattr(settings, "p1_uat_portal_basic_password", "非ASCII密碼")
+        assert client.get("/uat/p1", headers=_operator_headers(access_code)).status_code == 401
+
+        monkeypatch.setattr(settings, "p1_uat_portal_basic_password", access_code)
+        monkeypatch.setattr(settings, "p1_uat_portal_access_code", "非ASCII操作碼")
+        response = client.get(
+            "/api/v1/uat/p1/status",
+            headers=_headers(access_code, portal_code="wrong"),
+        )
+        assert response.status_code == 403
+        assert response.status_code != 500
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+
 def test_disabled_environment_and_nonexact_code_are_rejected(db_session, monkeypatch):
     access_code = _seed(db_session, monkeypatch)
     app, client = _client(db_session)
