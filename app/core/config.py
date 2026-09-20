@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     p1_uat_database_host: str = ""
     # 僅供隔離 UAT 手動執行一次真實 HMAC 交付驗收；預設禁止。
     p1_uat_direct_acceptance_enabled: bool = False
+    # 僅限 staging synthetic UAT Portal；四項條件及既有 synthetic DB guard 必須全數成立。
+    p1_uat_portal_enabled: bool = False
+    p1_uat_portal_environment: str = ""
+    railway_environment_name: str = ""
+    p1_uat_portal_access_code: str = ""
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"

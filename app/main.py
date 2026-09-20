@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api.v1 import auth, batches, inventory_inquiries, module, orders, p1_intake, products, webhook  # ※ superadmin 屬 /admin 紅線，本期不掛載
+from app.api.v1 import auth, batches, inventory_inquiries, module, orders, p1_intake, p1_uat_portal, products, webhook  # ※ superadmin 屬 /admin 紅線，本期不掛載
 from app.core.config import get_settings
 from app.core.response import error_response
 
@@ -86,3 +86,4 @@ app.include_router(
 )
 app.include_router(batches.router, prefix="/api/v1/stores/{store_id}/batches", tags=["batches"])
 app.include_router(module.router, prefix="/api/v1/module", tags=["module"])
+app.include_router(p1_uat_portal.router, tags=["p1-uat-portal"])
