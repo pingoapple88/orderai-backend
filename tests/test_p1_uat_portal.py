@@ -112,6 +112,9 @@ def test_html_has_staging_boundaries_and_no_embedded_or_persistent_access_code(d
         assert "localStorage" not in response.text
         assert "sessionStorage" not in response.text
         assert access_code not in response.text
+        assert "const formElement = event.currentTarget;" in response.text
+        assert "formElement.reset();" in response.text
+        assert "event.currentTarget.reset();" not in response.text
         assert response.headers["cache-control"] == "no-store"
     finally:
         client.close()

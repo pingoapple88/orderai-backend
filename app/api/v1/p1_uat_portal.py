@@ -279,12 +279,13 @@ _PORTAL_HTML = """<!doctype html>
   document.getElementById("statusButton").addEventListener("click", loadStatus);
   document.getElementById("caseForm").addEventListener("submit", async event => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const body = Object.fromEntries(form.entries());
     body.quantity = Number(body.quantity);
     try {
       show(await api("/api/v1/uat/p1/cases", { method: "POST", body: JSON.stringify(body) }));
-      event.currentTarget.reset();
+      formElement.reset();
       await loadStatus();
     } catch (error) { showError(error); }
   });
