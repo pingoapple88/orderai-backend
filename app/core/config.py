@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     llm_fallback_timeout_seconds: int = 60
     llm_fallback_max_retries: int = 0
     llm_fallback_allow_empty_api_key: bool = False
+    # 僅限隔離 staging 的 ILLMProvider 合約測試 Adapter；預設關閉，禁止作正式 AI 服務。
+    p1_uat_synthetic_llm_enabled: bool = False
 
     # AI 自動化（律八：信心閾值、fail-closed）
     ai_confidence_threshold: float = 0.85

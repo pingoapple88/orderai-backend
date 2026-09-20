@@ -10,6 +10,7 @@ from app.providers.erp_http import CloudDingErpIngestProvider
 from app.providers.failover_llm import FailoverLLMProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
+from app.providers.synthetic_staging_llm import SyntheticStagingLLMProvider
 from app.providers.stallpay import StallPayProvider
 
 settings = get_settings()
@@ -44,6 +45,13 @@ def _build_llm_provider(provider: str, *, use_fallback_settings: bool = False) -
         return OllamaLLMProvider(**connection)
     if provider in {"anthropic", "claude"}:
         return AnthropicMessagesLLMProvider(**connection)
+    if provider == "synthetic_staging" and not use_fallback_settings:
+        return SyntheticStagingLLMProvider(
+            enabled=settings.p1_uat_synthetic_llm_enabled,
+            environment=settings.environment,
+            railway_environment_name=settings.railway_environment_name,
+            uat_marker=settings.p1_uat_environment_marker,
+        )
     raise RuntimeError("Unsupported LLM provider: {}".format(provider))
 
 
