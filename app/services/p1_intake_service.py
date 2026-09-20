@@ -509,6 +509,8 @@ def create_text_case(
     result: Any,
     decision_status: str,
     decision_reasons: list[str],
+    commit: bool = True,
+    publish_event: bool = True,
 ) -> IntakeConversation:
     raw = getattr(result, "raw", None) or {}
     is_internal_relay = bool(source_user_id and source_user_id in settings.p1_internal_relay_user_ids)
@@ -610,21 +612,23 @@ def create_text_case(
             resource_id=case.id,
             details={"reason_code": "ERP_CONNECTION_BLOCKED", "delivery_attempted": False},
         )
-    db.commit()
-    event_bus.publish(
-        "p1.intake_case.created",
-        {
-            "conversation_id": case.id,
-            "store_id": store.id,
-            "company_id": store.company_id,
-            "state": case.state,
-        },
-    )
-    if deliverable:
+    if commit:
+        db.commit()
+    if publish_event:
         event_bus.publish(
-            "p1.erp_outbox.blocked",
-            {"conversation_id": case.id, "store_id": store.id, "company_id": store.company_id},
+            "p1.intake_case.created",
+            {
+                "conversation_id": case.id,
+                "store_id": store.id,
+                "company_id": store.company_id,
+                "state": case.state,
+            },
         )
+        if deliverable:
+            event_bus.publish(
+                "p1.erp_outbox.blocked",
+                {"conversation_id": case.id, "store_id": store.id, "company_id": store.company_id},
+            )
     return case
 
 

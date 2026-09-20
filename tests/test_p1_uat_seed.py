@@ -83,6 +83,35 @@ def test_clear_resets_dynamic_data_and_retains_append_only_audit_and_base_assets
     assert baseline["erp_delivery_outbox"] == 0
 
 
+def test_clear_removes_signed_line_ledger_events_without_permitting_formal_transactions(db_session, monkeypatch):
+    _configure_uat(monkeypatch)
+    seeded = p1_uat_seed.seed_p1_uat(db_session)
+    db_session.add(LineWebhookEvent(
+        company_id=seeded.company_id,
+        store_id=seeded.store_id,
+        channel="line",
+        webhook_event_id="qingquan-p1-uat-signed-line-event",
+        event_type="message",
+        message_type="text",
+        message_id_hmac="a" * 64,
+        source_user_hmac="b" * 64,
+        occurred_at=datetime.now(timezone.utc),
+        status="queued",
+    ))
+    db_session.commit()
+
+    p1_uat_seed.clear_p1_uat(db_session)
+
+    assert db_session.execute(
+        select(LineWebhookEvent).where(LineWebhookEvent.store_id == seeded.store_id)
+    ).scalars().all() == []
+    baseline = p1_uat_seed.verify_p1_uat_baseline(db_session)
+    assert baseline["formal_customers"] == 0
+    assert baseline["formal_orders"] == 0
+    assert baseline["payment_records"] == 0
+    assert baseline["line_webhook_events"] == 0
+
+
 def test_synthetic_direct_event_is_not_treated_as_line_webhook_side_effect(db_session, monkeypatch):
     _configure_uat(monkeypatch)
     seeded = p1_uat_seed.seed_p1_uat(db_session)
