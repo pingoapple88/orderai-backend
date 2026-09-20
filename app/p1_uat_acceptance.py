@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, Optional
@@ -37,6 +37,7 @@ _UAT_SOURCE_USER_ID = "UAT_QINGQUAN_P1_DIRECT_BUYER"
 _UAT_SOURCE_TEXT = "青泉谷 P1 UAT 合成：請訂兩盒，指定 UTC 時間取貨；無其他要求。"
 _UAT_REQUESTED_FOR = "2030-01-15T02:00:00+00:00"
 _RESUMABLE_CASE_STATE_VERSION = 2
+_UAT_EVENT_ID_SHA256 = hashlib.sha256(_UAT_EVENT_ID.encode("utf-8")).hexdigest()
 
 
 class P1UatAcceptanceBlocked(RuntimeError):
@@ -56,9 +57,15 @@ class P1UatAcceptanceResult:
     replay_dispatch_not_attempted: bool = False
 
     def safe_summary(self) -> dict[str, Any]:
+        """Return portable acceptance evidence without tenant or record identifiers."""
         return {
-            **asdict(self),
             "synthetic_only": True,
+            "event_id_sha256": _UAT_EVENT_ID_SHA256,
+            "outbox_status": self.outbox_status,
+            "replay_blocked": self.replay_blocked,
+            "reused": self.reused,
+            "resumed": self.resumed,
+            "replay_dispatch_not_attempted": self.replay_dispatch_not_attempted,
             "line_webhook_enabled": False,
             "line_message_sent": False,
             "formal_customer_created": False,
@@ -216,8 +223,7 @@ def status_p1_uat_acceptance(db: Session) -> dict[str, Any]:
             and counts["line_webhook_events"] == 0
         )
         return {
-            "company_id": store.company_id,
-            "store_id": store.id,
+            "event_id_sha256": _UAT_EVENT_ID_SHA256,
             "exact_synthetic_event_found": exact_event,
             "case_state": case.state if case else None,
             "case_state_version": case.state_version if case else None,

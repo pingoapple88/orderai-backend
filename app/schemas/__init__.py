@@ -156,6 +156,21 @@ class P1IntakeCaseOut(CamelModel):
     updated_at: Optional[datetime] = None
 
 
+class P1InboundEventOut(CamelModel):
+    """Safe operational metadata for a non-terminal signed inbound event."""
+    id: int
+    store_id: int
+    webhook_event_id_sha256: str
+    event_type: str
+    message_type: Optional[str] = None
+    status: str
+    error_code: Optional[str] = None
+    occurred_at: Optional[datetime] = None
+    claimed_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
 class P1IntakeDispatchOut(CamelModel):
     id: int
     conversation_id: int
@@ -165,7 +180,36 @@ class P1IntakeDispatchOut(CamelModel):
     updated_at: Optional[datetime] = None
 
 
-# ── 開團批次 / 貼上抄單（WO-009）─────────────────────────────────────────────
+class P1ReadinessChecksOut(CamelModel):
+    """Boolean-only P1 prerequisite results; no configuration values are exposed."""
+    intake_enabled: bool
+    store_company_scope_resolved: bool
+    encryption_key_valid: bool
+    identity_hmac_key_valid: bool
+    queue_provider_available: bool
+    erp_delivery_blocked: bool
+
+
+class P1UnresolvedEventCountsOut(CamelModel):
+    """Aggregate-only operational workload, constrained to the authorized scope."""
+    queued: int
+    processing: int
+    failed: int
+
+
+class P1ReadinessOut(CamelModel):
+    """Safe, store-scoped P1 readiness result without PII or deployment details."""
+    ready: bool
+    checks: P1ReadinessChecksOut
+    unresolved_event_counts: P1UnresolvedEventCountsOut
+    stale_processing_count: int
+    has_stale_processing: bool
+    stale_queued_count: int
+    has_stale_queued: bool
+    reason_codes: List[str] = []
+
+
+# ── 開團批次 / 貼上抄單（WO-009）──────────────────────────────────────────────────
 class BatchCreate(CamelModel):
     title: str
 

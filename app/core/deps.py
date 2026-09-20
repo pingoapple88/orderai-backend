@@ -34,3 +34,14 @@ def require_role(*roles: str):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient role")
         return principal
     return _dep
+
+
+def require_store_role(*roles: str):
+    """Require an allowed role and exact JWT/path store scope in one first gate."""
+    def _dep(store_id: int, principal: dict = Depends(get_current_principal)) -> dict:
+        if principal.get("role") not in roles:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient role")
+        if principal.get("store_id") != store_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Access denied")
+        return principal
+    return _dep

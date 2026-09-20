@@ -110,6 +110,20 @@ def get_queue():
     return _queue_singleton
 
 
+def get_queue_for_readiness():
+    """Construct the configured queue adapter without caching, probing, or enqueueing.
+
+    Redis client construction is lazy; this function deliberately does not call
+    ``ping``, ``depth``, or any queue mutation method. It is suitable for a
+    read-only operational preflight.
+    """
+    if settings.queue_backend.lower() == "memory":
+        from app.providers.queue_memory import InMemoryQueue
+        return InMemoryQueue()
+    from app.providers.queue_redis import RedisQueue
+    return RedisQueue()
+
+
 def set_queue(q) -> None:
     """測試注入用。"""
     global _queue_singleton

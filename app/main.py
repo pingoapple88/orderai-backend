@@ -1,13 +1,11 @@
 """FastAPI 入口。路由對齊 API 契約 v1.0（/api/v1 前綴 + store-scoped 訂單）。"""
 import logging
 import sys
-import traceback
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import auth, batches, inventory_inquiries, module, orders, p1_intake, products, webhook  # ※ superadmin 屬 /admin 紅線，本期不掛載
@@ -55,13 +53,16 @@ async def _validation_exc_handler(request: Request, exc: RequestValidationError)
 
 
 @app.exception_handler(Exception)
-async def _debug_exc_handler(request: Request, exc: Exception):
-    # ⚠️ DEBUG ONLY — 診斷完立刻 revert，勿長留（會外洩內部結構/traceback）。
-    # FastAPI 的 @app.exception_handler(Exception) 會被 ServerErrorMiddleware 當 handler，攔得到未處理例外。
-    return PlainTextResponse(
-        "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
-        status_code=500,
+async def _unhandled_exc_handler(request: Request, exc: Exception):
+    """Fail closed without returning traceback, SQL, PII, or configuration."""
+    logger = logging.getLogger(__name__)
+    logger.error(
+        "Unhandled request error method=%s path=%s exception=%s",
+        request.method,
+        request.url.path,
+        exc.__class__.__name__,
     )
+    return error_response("INTERNAL_ERROR", "Internal server error", status_code=500)
 
 
 @app.get("/health")
