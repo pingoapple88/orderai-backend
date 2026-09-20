@@ -1,6 +1,8 @@
 """FastAPI 入口。路由對齊 API 契約 v1.0（/api/v1 前綴 + store-scoped 訂單）。"""
+import asyncio
 import logging
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
@@ -21,7 +23,31 @@ logging.basicConfig(
 )
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Start the in-process queue consumer only for explicitly guarded UAT."""
+    from app.workers.p1_uat_memory_worker import (
+        is_p1_uat_memory_worker_allowed,
+        run_p1_uat_memory_worker,
+    )
+
+    stop_event = asyncio.Event()
+    worker_task: asyncio.Task | None = None
+    if is_p1_uat_memory_worker_allowed():
+        worker_task = asyncio.create_task(
+            run_p1_uat_memory_worker(stop_event), name="p1-uat-memory-worker"
+        )
+    try:
+        yield
+    finally:
+        if worker_task is not None:
+            stop_event.set()
+            await worker_task
+
+
+app = FastAPI(title=settings.app_name, lifespan=_lifespan)
 
 # CORS：前端(正式 app)跨來源打 /api/v1/*，需放行來源 + Authorization header(Bearer)。
 # 允許來源改由 ENV `ALLOWED_ORIGINS`（逗號分隔）提供，預設為正式 app 網域（沒設 ENV 時行為不變）。

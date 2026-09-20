@@ -120,6 +120,10 @@ class Settings(BaseSettings):
     p1_uat_portal_access_code: str = ""
     p1_uat_portal_basic_username: str = ""
     p1_uat_portal_basic_password: str = ""
+    # 僅限隔離 staging + UAT + memory queue 的 P1 文字／附件消費者。預設關閉；
+    # production、非 UAT 或 Redis queue 絕不以應用內背景 task 取代獨立 worker。
+    p1_uat_memory_queue_worker_enabled: bool = False
+    p1_uat_memory_queue_poll_seconds: float = 0.5
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
