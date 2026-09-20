@@ -237,7 +237,14 @@ def clear_p1_uat(db: Session) -> None:
     """重置精準識別的合成 UAT 動態資料，保留基礎資產與 append-only 稽核。"""
     _assert_uat_database_target()
     store = _one(db, select(Store).where(Store.store_key == _SYNTHETIC_STORE_KEY), "P1_UAT_STORE_NOT_FOUND")
-    if any(_forbidden_counts(db, store.id).values()):
+    forbidden = _forbidden_counts(db, store.id)
+    # 已驗簽的 LINE event ledger 屬於精準 synthetic 動態資料，必須能與其
+    # conversation／outbox 一起清除；Customer、Order、BillingRecord 才是
+    # 任一存在即阻止 cleanup 的正式交易副作用。
+    if any(
+        forbidden[key]
+        for key in ("formal_customers", "formal_orders", "payment_records")
+    ):
         raise P1UatSeedBlocked("P1_UAT_CLEAR_BLOCKED_BY_FORMAL_SIDE_EFFECT")
     owner = _one(
         db,
