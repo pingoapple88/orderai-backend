@@ -15,6 +15,7 @@ from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, IL
 
 _TAIPEI = ZoneInfo("Asia/Taipei")
 _UAT_MARKER = "qingquan-p1-uat"
+_SYNTHETIC_CATALOG_PRODUCT = "青泉谷 P1 UAT 合成商品"
 
 
 class SyntheticStagingLLMProvider(ILLMProvider):
@@ -50,7 +51,7 @@ class SyntheticStagingLLMProvider(ILLMProvider):
             return self._empty_result()
 
         match = re.search(
-            r"(?P<product>青泉谷蛋)\s*(?P<quantity>[1-9][0-9]?)\s*(?P<unit>盒|箱).*(?:明天|明日)\s*(?P<period>上午|下午)?\s*(?P<hour>[0-9]{1,2})\s*(?::(?P<minute>[0-5][0-9]))?\s*(?:取貨|自取)",
+            r"(?P<product>青泉谷(?:雞)?蛋)\s*(?P<quantity>[1-9][0-9]?)\s*(?P<unit>盒|箱).*(?:明天|明日)\s*(?P<period>上午|下午)?\s*(?P<hour>[0-9]{1,2})\s*(?::(?P<minute>[0-5][0-9]))?\s*(?:取貨|自取)",
             text,
         )
         if match is None:
@@ -71,7 +72,9 @@ class SyntheticStagingLLMProvider(ILLMProvider):
         return ExtractionResult(
             items=[
                 ExtractedItem(
-                    product_name=match.group("product"),
+                    # Synthetic alias mapping is explicit: this adapter never maps
+                    # to a production catalog or an unscoped product identity.
+                    product_name=_SYNTHETIC_CATALOG_PRODUCT,
                     quantity=quantity,
                     unit=match.group("unit"),
                     evidence="synthetic_staging_rule_match",

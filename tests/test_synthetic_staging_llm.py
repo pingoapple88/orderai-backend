@@ -26,10 +26,20 @@ def test_synthetic_staging_provider_parses_only_the_documented_synthetic_text_sh
 
     assert result.provider_name == "synthetic_staging_rule_based"
     assert [(item.product_name, item.quantity, item.unit) for item in result.items] == [
-        ("青泉谷蛋", 2, "盒")
+        ("青泉谷 P1 UAT 合成商品", 2, "盒")
     ]
     assert result.raw["synthetic_staging"] is True
     assert result.raw["requested_for"].endswith("+08:00")
+
+
+def test_synthetic_staging_provider_maps_chicken_egg_alias_to_synthetic_catalog():
+    result = asyncio.run(
+        _allowed_provider().extract_order(text="青泉谷雞蛋 2 盒，明天下午 3:00 取貨。")
+    )
+
+    assert [(item.product_name, item.quantity, item.unit) for item in result.items] == [
+        ("青泉谷 P1 UAT 合成商品", 2, "盒")
+    ]
 
 
 def test_synthetic_staging_provider_returns_empty_draft_for_unrecognised_text():
