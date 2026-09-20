@@ -42,6 +42,15 @@ def test_synthetic_staging_provider_maps_chicken_egg_alias_to_synthetic_catalog(
     ]
 
 
+def test_synthetic_staging_provider_accepts_chinese_pickup_hour():
+    result = asyncio.run(
+        _allowed_provider().extract_order(text="青泉谷雞蛋 2 盒，明天下午三點取貨。")
+    )
+
+    assert len(result.items) == 1
+    assert result.raw["requested_for"].endswith("+08:00")
+
+
 def test_synthetic_staging_provider_returns_empty_draft_for_unrecognised_text():
     result = asyncio.run(_allowed_provider().extract_order(text="這不是合成 UAT 格式"))
 

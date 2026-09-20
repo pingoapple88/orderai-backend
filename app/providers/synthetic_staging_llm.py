@@ -16,6 +16,20 @@ from app.core.interfaces.llm_provider import ExtractedItem, ExtractionResult, IL
 _TAIPEI = ZoneInfo("Asia/Taipei")
 _UAT_MARKER = "qingquan-p1-uat"
 _SYNTHETIC_CATALOG_PRODUCT = "青泉谷 P1 UAT 合成商品"
+_CHINESE_HOURS = {
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+    "十一": 11,
+    "十二": 12,
+}
 
 
 class SyntheticStagingLLMProvider(ILLMProvider):
@@ -51,14 +65,16 @@ class SyntheticStagingLLMProvider(ILLMProvider):
             return self._empty_result()
 
         match = re.search(
-            r"(?P<product>青泉谷(?:雞)?蛋)\s*(?P<quantity>[1-9][0-9]?)\s*(?P<unit>盒|箱).*(?:明天|明日)\s*(?P<period>上午|下午)?\s*(?P<hour>[0-9]{1,2})\s*(?::(?P<minute>[0-5][0-9]))?\s*(?:取貨|自取)",
+            r"(?P<product>青泉谷(?:雞)?蛋)\s*(?P<quantity>[1-9][0-9]?)\s*(?P<unit>盒|箱).*(?:明天|明日)\s*(?P<period>上午|下午)?\s*(?P<hour>[0-9]{1,2}|[一二三四五六七八九十]{1,2})(?::(?P<minute>[0-5][0-9]))?(?:點|时)?\s*(?:取貨|自取)",
             text,
         )
         if match is None:
             return self._empty_result()
 
         quantity = int(match.group("quantity"))
-        hour = int(match.group("hour"))
+        hour = self._parse_hour(match.group("hour"))
+        if hour is None:
+            return self._empty_result()
         minute = int(match.group("minute") or "0")
         if match.group("period") == "下午" and hour < 12:
             hour += 12
@@ -91,6 +107,12 @@ class SyntheticStagingLLMProvider(ILLMProvider):
                 "synthetic_staging": True,
             },
         )
+
+    @staticmethod
+    def _parse_hour(value: str) -> int | None:
+        if value.isdigit():
+            return int(value)
+        return _CHINESE_HOURS.get(value)
 
     @staticmethod
     def _empty_result() -> ExtractionResult:
