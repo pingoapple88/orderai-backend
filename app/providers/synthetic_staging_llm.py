@@ -64,19 +64,25 @@ class SyntheticStagingLLMProvider(ILLMProvider):
         if image_url is not None or industry_type != "ecom" or not text:
             return self._empty_result()
 
-        match = re.search(
-            r"(?P<product>青泉谷(?:雞)?蛋)\s*(?P<quantity>[1-9][0-9]?)\s*(?P<unit>盒|箱).*(?:明天|明日)\s*(?P<period>上午|下午)?\s*(?P<hour>[0-9]{1,2}|[一二三四五六七八九十]{1,2})(?::(?P<minute>[0-5][0-9]))?(?:點|时)?\s*(?:取貨|自取)",
+        item_match = re.search(
+            r"(?P<product>青泉谷\s*(?:雞\s*)?蛋)\s*(?P<quantity>[1-9][0-9]?)\s*(?P<unit>盒|箱)",
             text,
+            flags=re.DOTALL,
         )
-        if match is None:
+        pickup_match = re.search(
+            r"(?:明天|明日).*?(?P<period>上午|下午)?\s*(?P<hour>[0-9]{1,2}|[一二三四五六七八九十]{1,2})(?::(?P<minute>[0-5][0-9]))?(?:點|时)?\s*(?:取貨|自取)",
+            text,
+            flags=re.DOTALL,
+        )
+        if item_match is None or pickup_match is None:
             return self._empty_result()
 
-        quantity = int(match.group("quantity"))
-        hour = self._parse_hour(match.group("hour"))
+        quantity = int(item_match.group("quantity"))
+        hour = self._parse_hour(pickup_match.group("hour"))
         if hour is None:
             return self._empty_result()
-        minute = int(match.group("minute") or "0")
-        if match.group("period") == "下午" and hour < 12:
+        minute = int(pickup_match.group("minute") or "0")
+        if pickup_match.group("period") == "下午" and hour < 12:
             hour += 12
         if not 0 <= hour <= 23:
             return self._empty_result()
@@ -92,7 +98,7 @@ class SyntheticStagingLLMProvider(ILLMProvider):
                     # to a production catalog or an unscoped product identity.
                     product_name=_SYNTHETIC_CATALOG_PRODUCT,
                     quantity=quantity,
-                    unit=match.group("unit"),
+                    unit=item_match.group("unit"),
                     evidence="synthetic_staging_rule_match",
                     confidence_score=0.70,
                 )

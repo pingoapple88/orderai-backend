@@ -51,6 +51,17 @@ def test_synthetic_staging_provider_accepts_chinese_pickup_hour():
     assert result.raw["requested_for"].endswith("+08:00")
 
 
+def test_synthetic_staging_provider_accepts_line_style_newlines_between_item_and_pickup_time():
+    result = asyncio.run(
+        _allowed_provider().extract_order(text="青泉谷雞蛋\n2盒\n明天下午三點\n取貨")
+    )
+
+    assert [(item.product_name, item.quantity, item.unit) for item in result.items] == [
+        ("青泉谷 P1 UAT 合成商品", 2, "盒")
+    ]
+    assert result.raw["requested_for"].endswith("+08:00")
+
+
 def test_synthetic_staging_provider_returns_empty_draft_for_unrecognised_text():
     result = asyncio.run(_allowed_provider().extract_order(text="這不是合成 UAT 格式"))
 
