@@ -61,15 +61,24 @@ class P1UatPortalConflict(RuntimeError):
     """指定案例不再是可維持 pending 的安全人工覆核狀態。"""
 
 
-def assert_portal_access(access_code: Optional[str]) -> None:
-    """所有 JSON action 共用的 fail-closed staging 與 constant-time code 守門。"""
-    expected = settings.p1_uat_portal_access_code
-    code_matches = secrets.compare_digest(access_code or "", expected or "")
+def assert_portal_environment() -> None:
+    """HTML 頁面與 JSON action 共用的 fail-closed staging 環境守門。"""
     allowed = (
         settings.p1_uat_portal_enabled
         and settings.p1_uat_portal_environment.strip().lower() == "staging"
         and settings.railway_environment_name.strip().lower() == "staging"
-        and bool(expected)
+    )
+    if not allowed:
+        raise P1UatPortalBlocked("P1_UAT_PORTAL_ENVIRONMENT_DENIED")
+
+
+def assert_portal_access(access_code: Optional[str]) -> None:
+    """所有 JSON action 共用的 fail-closed staging 與 constant-time code 守門。"""
+    assert_portal_environment()
+    expected = settings.p1_uat_portal_access_code
+    code_matches = secrets.compare_digest(access_code or "", expected or "")
+    allowed = (
+        bool(expected)
         and bool(access_code)
         and code_matches
     )
@@ -266,30 +275,38 @@ def create_pending_case(
             )
         ],
     )
-    case = create_text_case(
-        db,
-        store=store,
-        source_event=event,
-        source_text=source_text,
-        source_user_id=None,
-        result=result,
-        decision_status="needs_human_review",
-        decision_reasons=[_PORTAL_CREATE_REASON],
-    )
-    outbox_count = int(
-        db.scalar(
-            select(func.count()).select_from(ErpDeliveryOutbox).where(
-                ErpDeliveryOutbox.store_id == store.id,
-                ErpDeliveryOutbox.company_id == company.id,
-                ErpDeliveryOutbox.conversation_id == case.id,
-            )
+    try:
+        case = create_text_case(
+            db,
+            store=store,
+            source_event=event,
+            source_text=source_text,
+            source_user_id=None,
+            result=result,
+            decision_status="needs_human_review",
+            decision_reasons=[_PORTAL_CREATE_REASON],
+            commit=False,
+            publish_event=False,
         )
-        or 0
-    )
-    if case.state != "needs_human_review" or outbox_count:
-        raise P1UatPortalBlocked("P1_UAT_PORTAL_PENDING_ONLY_INVARIANT_FAILED")
-    if any(_forbidden_counts(db, store.id).values()):
-        raise P1UatPortalBlocked("P1_UAT_PORTAL_FORMAL_SIDE_EFFECT_DETECTED")
+        outbox_count = int(
+            db.scalar(
+                select(func.count()).select_from(ErpDeliveryOutbox).where(
+                    ErpDeliveryOutbox.store_id == store.id,
+                    ErpDeliveryOutbox.company_id == company.id,
+                    ErpDeliveryOutbox.conversation_id == case.id,
+                )
+            )
+            or 0
+        )
+        if case.state != "needs_human_review" or outbox_count:
+            raise P1UatPortalBlocked("P1_UAT_PORTAL_PENDING_ONLY_INVARIANT_FAILED")
+        if any(_forbidden_counts(db, store.id).values()):
+            raise P1UatPortalBlocked("P1_UAT_PORTAL_FORMAL_SIDE_EFFECT_DETECTED")
+        db.commit()
+        db.refresh(case)
+    except Exception:
+        db.rollback()
+        raise
     return {
         "caseRef": str(case_uuid),
         "eventIdSha256": event_hash,
@@ -437,8 +454,10 @@ def portal_status(db: Session) -> dict[str, Any]:
         "formalOrderCount": forbidden["formal_orders"],
         "paymentRecordCount": forbidden["payment_records"],
         "inventoryRecordCount": inventory_count,
-        "fulfillmentRecordCount": 0,
-        "invoiceRecordCount": 0,
+        "notApplicableSafetyChecks": {
+            "fulfillmentRecords": "model_not_present",
+            "invoiceRecords": "model_not_present",
+        },
         "cases": cases,
     }
 

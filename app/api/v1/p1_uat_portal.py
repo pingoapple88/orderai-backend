@@ -3,17 +3,22 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+import secrets
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.response import success_response
 from app.services import p1_uat_portal_service
 
 router = APIRouter()
+_http_basic = HTTPBasic(auto_error=False)
 
 
 class _PortalModel(BaseModel):
@@ -30,6 +35,45 @@ class P1UatPortalCaseCreate(_PortalModel):
     quantity: int = Field(ge=1, le=99)
     requested_for: str = Field(min_length=1, max_length=120)
     special_requirement: str = Field(min_length=1, max_length=1000)
+
+
+def _portal_auth_denied() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="P1 UAT portal operator authentication required",
+        headers={"WWW-Authenticate": 'Basic realm="P1 staging UAT"'},
+    )
+
+
+def _require_portal_operator(
+    credentials: HTTPBasicCredentials | None = Depends(_http_basic),
+) -> None:
+    """Portal page 與 JSON action 共用的 operator Basic Auth，預設拒絕。"""
+    settings = get_settings()
+    expected_username = settings.p1_uat_portal_basic_username
+    expected_password = settings.p1_uat_portal_basic_password
+    username_matches = secrets.compare_digest(
+        credentials.username if credentials else "", expected_username or ""
+    )
+    password_matches = secrets.compare_digest(
+        credentials.password if credentials else "", expected_password or ""
+    )
+    if not (
+        settings.p1_uat_portal_enabled
+        and expected_username
+        and expected_password
+        and credentials
+        and username_matches
+        and password_matches
+    ):
+        raise _portal_auth_denied()
+
+
+def _require_portal_page_environment() -> None:
+    try:
+        p1_uat_portal_service.assert_portal_environment()
+    except p1_uat_portal_service.P1UatPortalBlocked as exc:
+        raise HTTPException(403, "P1 UAT portal environment denied") from exc
 
 
 def _require_portal_access(
@@ -57,7 +101,12 @@ def _run_portal_action(action):
         raise HTTPException(403, "P1 UAT portal synthetic scope denied") from exc
 
 
-@router.get("/uat/p1", response_class=HTMLResponse, include_in_schema=False)
+@router.get(
+    "/uat/p1",
+    response_class=HTMLResponse,
+    dependencies=[Depends(_require_portal_operator), Depends(_require_portal_page_environment)],
+    include_in_schema=False,
+)
 def p1_uat_portal_page() -> HTMLResponse:
     return HTMLResponse(
         content=_PORTAL_HTML,
@@ -70,12 +119,18 @@ def p1_uat_portal_page() -> HTMLResponse:
     )
 
 
-@router.get("/api/v1/uat/p1/status", dependencies=[Depends(_require_portal_access)])
+@router.get(
+    "/api/v1/uat/p1/status",
+    dependencies=[Depends(_require_portal_operator), Depends(_require_portal_access)],
+)
 def p1_uat_portal_status(db: Session = Depends(get_db)):
     return _run_portal_action(lambda: p1_uat_portal_service.portal_status(db))
 
 
-@router.post("/api/v1/uat/p1/cases", dependencies=[Depends(_require_portal_access)])
+@router.post(
+    "/api/v1/uat/p1/cases",
+    dependencies=[Depends(_require_portal_operator), Depends(_require_portal_access)],
+)
 def create_p1_uat_portal_case(
     body: P1UatPortalCaseCreate,
     db: Session = Depends(get_db),
@@ -94,7 +149,7 @@ def create_p1_uat_portal_case(
 
 @router.post(
     "/api/v1/uat/p1/cases/{case_ref}/review",
-    dependencies=[Depends(_require_portal_access)],
+    dependencies=[Depends(_require_portal_operator), Depends(_require_portal_access)],
 )
 def review_p1_uat_portal_case(case_ref: str, db: Session = Depends(get_db)):
     return _run_portal_action(
@@ -102,7 +157,10 @@ def review_p1_uat_portal_case(case_ref: str, db: Session = Depends(get_db)):
     )
 
 
-@router.delete("/api/v1/uat/p1", dependencies=[Depends(_require_portal_access)])
+@router.delete(
+    "/api/v1/uat/p1",
+    dependencies=[Depends(_require_portal_operator), Depends(_require_portal_access)],
+)
 def cleanup_p1_uat_portal(db: Session = Depends(get_db)):
     return _run_portal_action(lambda: p1_uat_portal_service.cleanup_portal(db))
 

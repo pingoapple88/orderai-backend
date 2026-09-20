@@ -1,6 +1,7 @@
 """青泉谷 P1 staging UAT Portal：真 PostgreSQL、synthetic-only、零外部服務測試。"""
 from __future__ import annotations
 
+import base64
 import json
 import secrets
 from uuid import uuid4
@@ -25,6 +26,7 @@ from app.models import (
 from app.services import p1_intake_service, p1_uat_portal_service
 
 _FERNET_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+_PORTAL_OPERATOR = "synthetic-uat-operator"
 
 
 def _configure_portal(monkeypatch) -> str:
@@ -34,6 +36,8 @@ def _configure_portal(monkeypatch) -> str:
     monkeypatch.setattr(settings, "p1_uat_portal_environment", "staging")
     monkeypatch.setattr(settings, "railway_environment_name", "staging")
     monkeypatch.setattr(settings, "p1_uat_portal_access_code", access_code)
+    monkeypatch.setattr(settings, "p1_uat_portal_basic_username", _PORTAL_OPERATOR)
+    monkeypatch.setattr(settings, "p1_uat_portal_basic_password", access_code)
     monkeypatch.setattr(settings, "environment", "uat")
     monkeypatch.setattr(settings, "p1_uat_environment_marker", "qingquan-p1-uat")
     monkeypatch.setattr(settings, "p1_uat_seed_enabled", True)
@@ -62,8 +66,16 @@ def _client(db_session):
     return app, TestClient(app)
 
 
-def _headers(access_code: str) -> dict[str, str]:
-    return {"X-P1-UAT-Access-Code": access_code}
+def _operator_headers(access_code: str) -> dict[str, str]:
+    encoded = base64.b64encode(f"{_PORTAL_OPERATOR}:{access_code}".encode()).decode()
+    return {"Authorization": f"Basic {encoded}"}
+
+
+def _headers(access_code: str, *, portal_code: str | None = None) -> dict[str, str]:
+    return {
+        **_operator_headers(access_code),
+        "X-P1-UAT-Access-Code": portal_code if portal_code is not None else access_code,
+    }
 
 
 def _body() -> dict:
@@ -86,7 +98,14 @@ def test_html_has_staging_boundaries_and_no_embedded_or_persistent_access_code(d
     access_code = _configure_portal(monkeypatch)
     app, client = _client(db_session)
     try:
-        response = client.get("/uat/p1")
+        denied = client.get("/uat/p1")
+        assert denied.status_code == 401
+        assert denied.headers["www-authenticate"] == 'Basic realm="P1 staging UAT"'
+
+        wrong_operator = client.get("/uat/p1", headers=_operator_headers(f"{access_code}-wrong"))
+        assert wrong_operator.status_code == 401
+
+        response = client.get("/uat/p1", headers=_operator_headers(access_code))
         assert response.status_code == 200
         assert "STAGING SYNTHETIC ONLY" in response.text
         assert "不付款／不扣庫／不出貨／不開票" in response.text
@@ -100,7 +119,7 @@ def test_html_has_staging_boundaries_and_no_embedded_or_persistent_access_code(d
 
 
 def test_all_json_actions_reject_missing_access_code_before_database_action(db_session, monkeypatch):
-    _configure_portal(monkeypatch)
+    access_code = _configure_portal(monkeypatch)
     app, client = _client(db_session)
     try:
         actions = [
@@ -111,6 +130,13 @@ def test_all_json_actions_reject_missing_access_code_before_database_action(db_s
         ]
         for method, path, body in actions:
             response = client.request(method, path, json=body)
+            assert response.status_code == 401
+            response = client.request(
+                method,
+                path,
+                json=body,
+                headers=_operator_headers(access_code),
+            )
             assert response.status_code == 403
         assert db_session.scalar(select(func.count()).select_from(LineWebhookEvent)) == 0
         assert db_session.scalar(select(func.count()).select_from(IntakeConversation)) == 0
@@ -124,7 +150,7 @@ def test_disabled_environment_and_nonexact_code_are_rejected(db_session, monkeyp
     app, client = _client(db_session)
     try:
         monkeypatch.setattr(p1_uat_portal_service.settings, "p1_uat_portal_enabled", False)
-        assert client.get("/api/v1/uat/p1/status", headers=_headers(access_code)).status_code == 403
+        assert client.get("/api/v1/uat/p1/status", headers=_headers(access_code)).status_code == 401
 
         monkeypatch.setattr(p1_uat_portal_service.settings, "p1_uat_portal_enabled", True)
         monkeypatch.setattr(p1_uat_portal_service.settings, "p1_uat_portal_environment", "production")
@@ -137,7 +163,7 @@ def test_disabled_environment_and_nonexact_code_are_rejected(db_session, monkeyp
         monkeypatch.setattr(p1_uat_portal_service.settings, "railway_environment_name", "staging")
         assert client.get(
             "/api/v1/uat/p1/status",
-            headers=_headers(f"{access_code}-not-exact"),
+            headers=_headers(access_code, portal_code=f"{access_code}-not-exact"),
         ).status_code == 403
         monkeypatch.setattr(p1_uat_portal_service.settings, "p1_uat_portal_access_code", "")
         assert client.get(
@@ -278,8 +304,10 @@ def test_create_and_review_are_real_encrypted_pending_only_with_redacted_audit(d
         assert status["formalOrderCount"] == 0
         assert status["paymentRecordCount"] == 0
         assert status["inventoryRecordCount"] == 0
-        assert status["fulfillmentRecordCount"] == 0
-        assert status["invoiceRecordCount"] == 0
+        assert status["notApplicableSafetyChecks"] == {
+            "fulfillmentRecords": "model_not_present",
+            "invoiceRecords": "model_not_present",
+        }
         assert all(value not in status_response.text for value in sensitive_input)
         assert access_code not in status_response.text
 
@@ -292,6 +320,38 @@ def test_create_and_review_are_real_encrypted_pending_only_with_redacted_audit(d
         db_session.refresh(case)
         assert case.state == "needs_human_review"
         assert case.state_version == 2
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+
+def test_pending_only_invariant_failure_rolls_back_all_portal_writes(db_session, monkeypatch):
+    access_code = _seed(db_session, monkeypatch)
+    app, client = _client(db_session)
+    original_create = p1_uat_portal_service.create_text_case
+    before = {
+        "events": db_session.scalar(select(func.count()).select_from(LineWebhookEvent)),
+        "cases": db_session.scalar(select(func.count()).select_from(IntakeConversation)),
+        "audit": db_session.scalar(select(func.count()).select_from(AuditLog)),
+    }
+
+    def _invalid_case(*args, **kwargs):
+        case = original_create(*args, **kwargs)
+        case.state = "approved"
+        return case
+
+    monkeypatch.setattr(p1_uat_portal_service, "create_text_case", _invalid_case)
+    try:
+        response = client.post(
+            "/api/v1/uat/p1/cases",
+            json=_body(),
+            headers=_headers(access_code),
+        )
+        assert response.status_code == 403
+        assert db_session.scalar(select(func.count()).select_from(LineWebhookEvent)) == before["events"]
+        assert db_session.scalar(select(func.count()).select_from(IntakeConversation)) == before["cases"]
+        assert db_session.scalar(select(func.count()).select_from(AuditLog)) == before["audit"]
+        assert db_session.scalar(select(func.count()).select_from(ErpDeliveryOutbox)) == 0
     finally:
         client.close()
         app.dependency_overrides.clear()
@@ -390,7 +450,7 @@ def test_cleanup_is_guarded_and_removes_only_synthetic_dynamic_data(db_session, 
 
         denied = client.delete(
             "/api/v1/uat/p1",
-            headers=_headers(f"{access_code}-wrong"),
+            headers=_headers(access_code, portal_code=f"{access_code}-wrong"),
         )
         assert denied.status_code == 403
         assert db_session.scalar(select(func.count()).select_from(IntakeConversation)) == 1

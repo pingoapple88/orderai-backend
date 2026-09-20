@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 from fastapi.responses import JSONResponse
 
@@ -17,8 +17,14 @@ def success_response(data: Any, pagination: Optional[dict] = None) -> dict:
     return r
 
 
-def error_response(code: str, message: str, status_code: int = 400) -> JSONResponse:
+def error_response(
+    code: str,
+    message: str,
+    status_code: int = 400,
+    headers: Mapping[str, str] | None = None,
+) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={"success": False, "error": {"code": code, "message": message}},
+        headers=headers,
     )

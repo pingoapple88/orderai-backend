@@ -44,7 +44,12 @@ _STATUS_CODE = {
 @app.exception_handler(StarletteHTTPException)
 async def _http_exc_handler(request: Request, exc: StarletteHTTPException):
     code = _STATUS_CODE.get(exc.status_code, "ERROR")
-    return error_response(code, str(exc.detail), status_code=exc.status_code)
+    return error_response(
+        code,
+        str(exc.detail),
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)

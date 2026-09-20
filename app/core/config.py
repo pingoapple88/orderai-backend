@@ -118,6 +118,8 @@ class Settings(BaseSettings):
     p1_uat_portal_environment: str = ""
     railway_environment_name: str = ""
     p1_uat_portal_access_code: str = ""
+    p1_uat_portal_basic_username: str = ""
+    p1_uat_portal_basic_password: str = ""
 
     # PR-2：StallPay 金流橋接（情境四）
     stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
