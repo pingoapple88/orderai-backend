@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 
 import pytest
@@ -264,6 +265,7 @@ def test_p1_intake_api_enforces_review_and_dispatch_state_conflicts(db_session, 
 def test_p1_event_api_lists_only_scoped_unresolved_metadata_without_pii_or_rearm(db_session, monkeypatch):
     store, _ = _make_deliverable_case(db_session, monkeypatch)
     event = db_session.execute(select(LineWebhookEvent)).scalar_one()
+    raw_event_identifier = event.webhook_event_id
     event.status = "failed"
     event.error_code = "P1_INTAKE_PROCESSING_FAILED"
     db_session.commit()
@@ -288,6 +290,11 @@ def test_p1_event_api_lists_only_scoped_unresolved_metadata_without_pii_or_rearm
         assert row["status"] == "failed"
         assert row["errorCode"] == "P1_INTAKE_PROCESSING_FAILED"
         assert "sourceUserHmac" not in row and "messageIdHmac" not in row
+        assert row["webhookEventIdSha256"] == hashlib.sha256(
+            raw_event_identifier.encode("utf-8")
+        ).hexdigest()
+        assert "webhookEventId" not in row
+        assert raw_event_identifier not in json.dumps(row, ensure_ascii=False)
         assert denied.status_code == 403
         assert low_role_denied.status_code == 403
         assert db_session.execute(select(Order)).scalars().all() == []

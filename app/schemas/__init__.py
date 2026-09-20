@@ -160,7 +160,7 @@ class P1InboundEventOut(CamelModel):
     """Safe operational metadata for a non-terminal signed inbound event."""
     id: int
     store_id: int
-    webhook_event_id: str
+    webhook_event_id_sha256: str
     event_type: str
     message_type: Optional[str] = None
     status: str

@@ -9,6 +9,7 @@ confirms a sale or dispatches ERP delivery.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from typing import Any, Dict, Optional
 
@@ -64,7 +65,10 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
     source_event = p1_intake_service.claim_event(db, store_id=store.id, webhook_event_id=line_event_id)
     if source_event is None:
         # Events are claimed only from the signed, deduplicated P1 ledger.
-        logger.info("LINE event is absent from or already claimed by P1 ledger: %s", line_event_id)
+        logger.info(
+            "LINE event is absent from or already claimed by P1 ledger: event_id_sha256=%s",
+            hashlib.sha256(line_event_id.encode("utf-8")).hexdigest(),
+        )
         return
 
     message = event.get("message") or {}

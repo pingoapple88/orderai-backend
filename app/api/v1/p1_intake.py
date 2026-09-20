@@ -1,4 +1,5 @@
 """青泉谷 P1 人工覆核與受控隔離送件 API。"""
+import hashlib
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,6 +22,23 @@ router = APIRouter()
 
 def _case_out(case) -> dict:
     return P1IntakeCaseOut.model_validate(case).model_dump(by_alias=True)
+
+
+def _inbound_event_out(event) -> dict:
+    """回傳可供追查的雜湊識別碼，不外洩原始 LINE event identifier。"""
+    return P1InboundEventOut(
+        id=event.id,
+        store_id=event.store_id,
+        webhook_event_id_sha256=hashlib.sha256(event.webhook_event_id.encode("utf-8")).hexdigest(),
+        event_type=event.event_type,
+        message_type=event.message_type,
+        status=event.status,
+        error_code=event.error_code,
+        occurred_at=event.occurred_at,
+        claimed_at=event.claimed_at,
+        processed_at=event.processed_at,
+        created_at=event.created_at,
+    ).model_dump(by_alias=True)
 
 
 @router.get("")
@@ -48,7 +66,7 @@ def list_unresolved_p1_events(
     """Expose only non-terminal event metadata for manual P1 incident follow-up."""
     try:
         rows = p1_intake_service.list_unresolved_events(db, store_id, status)
-        return success_response([P1InboundEventOut.model_validate(row).model_dump(by_alias=True) for row in rows])
+        return success_response([_inbound_event_out(row) for row in rows])
     except PermissionError as exc:
         raise HTTPException(403, str(exc))
     except ValueError as exc:

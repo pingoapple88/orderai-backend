@@ -6,7 +6,9 @@ are synthetic; no LINE or ERP network calls occur.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import logging
 
 from sqlalchemy import func, select
 
@@ -163,21 +165,26 @@ def test_low_confidence_text_stays_human_review_without_delivery_or_formal_recor
     assert _count(db_session, Order) == 0
 
 
-def test_redelivery_claims_existing_ledger_event_once_without_duplicate_case_or_formal_records(db_session, monkeypatch):
+def test_redelivery_claims_existing_ledger_event_once_without_duplicate_case_or_formal_records(db_session, monkeypatch, caplog):
     store, product = _seed(db_session)
     _configure_p1(monkeypatch, store.id, product.id)
-    payload = _payload("issue34-redelivery")
+    event_id = "issue34-redelivery"
+    payload = _payload(event_id)
     assert _record(db_session, store, payload)
     assert _record(db_session, store, payload) == []
 
     _run(monkeypatch, _result(), payload, db_session)
-    _run(monkeypatch, _result(), payload, db_session)
+    with caplog.at_level(logging.INFO, logger="app.workers.line_worker"):
+        _run(monkeypatch, _result(), payload, db_session)
 
     assert _count(db_session, LineWebhookEvent) == 1
     assert _count(db_session, IntakeConversation) == 1
     assert _count(db_session, ErpDeliveryOutbox) == 1
     assert _count(db_session, Customer) == 0
     assert _count(db_session, Order) == 0
+    messages = "\n".join(caplog.messages)
+    assert event_id not in messages
+    assert hashlib.sha256(event_id.encode("utf-8")).hexdigest() in messages
 
 
 def test_missing_encryption_configuration_fails_closed_after_claim_without_formal_records(db_session, monkeypatch):
