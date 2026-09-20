@@ -44,6 +44,14 @@ class _FakeNotif:
         raise AssertionError("text intake must not automatically promise a sale")
 
 
+class _CapturingNotif:
+    def __init__(self):
+        self.messages = []
+
+    async def send_message(self, to, text, reply_token=None):
+        self.messages.append({"to": to, "text": text, "reply_token": reply_token})
+
+
 def _seed(db):
     company = Company(name="Issue 34 合成公司")
     plan = Plan(name="issue34", channel="direct", monthly_price=0)
@@ -121,9 +129,9 @@ def _record(db, store, payload):
     return p1_intake_service.record_line_events(db, payload, store)
 
 
-def _run(monkeypatch, result, payload, db):
+def _run(monkeypatch, result, payload, db, *, notif=None):
     monkeypatch.setattr("app.providers.get_llm_provider", lambda: _FakeLLM(result))
-    monkeypatch.setattr("app.providers.get_notification_provider", _FakeNotif)
+    monkeypatch.setattr("app.providers.get_notification_provider", lambda: notif or _FakeNotif())
     asyncio.run(line_worker.process_webhook_event(payload, db=db))
 
 
@@ -163,6 +171,39 @@ def test_low_confidence_text_stays_human_review_without_delivery_or_formal_recor
     assert _count(db_session, ErpDeliveryOutbox) == 0
     assert _count(db_session, Customer) == 0
     assert _count(db_session, Order) == 0
+
+
+def test_sticker_creates_human_review_case_and_only_asks_for_text_clarification(db_session, monkeypatch):
+    store, product = _seed(db_session)
+    _configure_p1(monkeypatch, store.id, product.id)
+    monkeypatch.setattr(line_worker.settings, "p1_attachment_followup_enabled", True)
+    monkeypatch.setattr(line_worker.settings, "line_messaging_access_token", "synthetic-test-token")
+    payload = _payload("issue34-sticker")
+    payload["events"][0]["message"] = {
+        "type": "sticker",
+        "id": "synthetic-sticker-message",
+        "packageId": "synthetic-package",
+        "stickerId": "synthetic-sticker",
+    }
+    assert _record(db_session, store, payload)
+    notif = _CapturingNotif()
+
+    _run(monkeypatch, _result(), payload, db_session, notif=notif)
+
+    case = db_session.execute(select(IntakeConversation)).scalar_one()
+    event = db_session.execute(select(LineWebhookEvent)).scalar_one()
+    assert case.state == "needs_human_review"
+    assert case.source_kind == "sticker"
+    assert "unsupported_message_type" in (case.reason_codes or {}).get("codes", [])
+    assert event.status == "processed"
+    assert _count(db_session, ErpDeliveryOutbox) == 0
+    assert _count(db_session, Customer) == 0
+    assert _count(db_session, Order) == 0
+    assert notif.messages == [{
+        "to": "Uissue34buyer",
+        "reply_token": "reply-issue34-sticker",
+        "text": "已收到貼圖。為避免辨識錯誤，請直接以文字提供訂購人、商品、數量、需要時間與特別要求。",
+    }]
 
 
 def test_redelivery_claims_existing_ledger_event_once_without_duplicate_case_or_formal_records(db_session, monkeypatch, caplog):

@@ -32,8 +32,25 @@ def _get_text_from_event(event: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_id: Optional[str]) -> None:
-    """Do not pretend to request clarification without an official configured channel."""
+def _nontext_followup_text(message_type: Optional[str]) -> str:
+    """Return a privacy-safe clarification for non-text LINE messages."""
+    if message_type == "sticker":
+        kind = "貼圖"
+    elif message_type in {"image", "audio", "file"}:
+        kind = "附件"
+    else:
+        kind = "非文字訊息"
+    return f"已收到{kind}。為避免辨識錯誤，請直接以文字提供訂購人、商品、數量、需要時間與特別要求。"
+
+
+async def _safe_nontext_followup(
+    notif,
+    *,
+    reply_token: Optional[str],
+    user_id: Optional[str],
+    message_type: Optional[str],
+) -> None:
+    """Reply only through an officially configured channel; otherwise retain review."""
     if not (
         settings.p1_attachment_followup_enabled
         and settings.line_messaging_access_token
@@ -45,10 +62,10 @@ async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_i
         await notif.send_message(
             to=user_id,
             reply_token=reply_token,
-            text="已收到附件。為避免辨識錯誤，請直接以文字提供訂購人、商品、數量、需要時間與特別要求。",
+            text=_nontext_followup_text(message_type),
         )
     except Exception:  # noqa: BLE001 - Retain the review case; do not retry an external notification.
-        logger.warning("P1 attachment follow-up unavailable; retained for human review")
+        logger.warning("P1 non-text follow-up unavailable; retained for human review")
 
 
 async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
@@ -81,7 +98,12 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
             p1_intake_service.create_attachment_case(
                 db, store=store, source_event=source_event, media_type=message_type
             )
-            await _safe_attachment_followup(notif, reply_token=reply_token, user_id=source_user_id)
+            await _safe_nontext_followup(
+                notif,
+                reply_token=reply_token,
+                user_id=source_user_id,
+                message_type=message_type,
+            )
             p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
 
@@ -108,6 +130,12 @@ async def _process_p1_event(db: Session, event: Dict[str, Any], llm, notif) -> N
                 )(),
                 decision_status="needs_review",
                 decision_reasons=["unsupported_message_type"],
+            )
+            await _safe_nontext_followup(
+                notif,
+                reply_token=reply_token,
+                user_id=source_user_id,
+                message_type=message_type,
             )
             p1_intake_service.finish_event(db, source_event, store_id=store.id)
             return
