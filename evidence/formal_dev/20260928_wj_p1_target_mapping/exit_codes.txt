@@ -1,0 +1,7 @@
+full_pytest=0
+focused_pytest=0
+ruff_new=0
+mypy_new=0
+compileall_changed=0
+git_diff_check=0
+forbidden_scan=0

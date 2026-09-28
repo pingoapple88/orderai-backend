@@ -1,0 +1,29 @@
+........................................................................ [ 42%]
+..s..................................................................... [ 85%]
+........................                                                 [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/ubuntu/work/wanjiaxiang-erp-orderai/orderai-backend/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_auth_callback.py: 1 warning
+tests/test_batches.py: 8 warnings
+tests/test_inventory_inquiries.py: 1 warning
+tests/test_module_api.py: 1 warning
+tests/test_orders_reject.py: 3 warnings
+tests/test_p1_delivery_service.py: 4 warnings
+tests/test_products.py: 4 warnings
+  /home/ubuntu/work/wanjiaxiang-erp-orderai/orderai-backend/.venv/lib/python3.12/site-packages/jwt/api_jwt.py:149: InsecureKeyLengthWarning: The HMAC key is 17 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+tests/test_batches.py: 8 warnings
+tests/test_inventory_inquiries.py: 1 warning
+tests/test_module_api.py: 1 warning
+tests/test_orders_reject.py: 3 warnings
+tests/test_p1_delivery_service.py: 4 warnings
+tests/test_products.py: 4 warnings
+  /home/ubuntu/work/wanjiaxiang-erp-orderai/orderai-backend/.venv/lib/python3.12/site-packages/jwt/api_jwt.py:370: InsecureKeyLengthWarning: The HMAC key is 17 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+167 passed, 1 skipped, 44 warnings in 13.20s

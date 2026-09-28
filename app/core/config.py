@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     # 0 = 未設定，P1 維持人工覆核且不建立 ERP outbox。
     p1_erp_target_company_id: int = 0
     p1_erp_sales_location_id: int = 0
+    # 多據點 JSON mapping：local store/company → ERP company/location。
+    # 非空時缺 store 或 company mismatch 一律 fail-closed；空值沿用上方單一目標 fallback。
+    p1_erp_target_mappings_json: str = "{}"
     # JSON object: {"<OrderAI local product id>": <ERP product id>}。
     # 未設定或無效 mapping 時 P1 必須維持人工覆核，絕不可猜測 ERP 商品。
     p1_erp_product_id_map_json: str = "{}"

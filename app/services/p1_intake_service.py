@@ -25,6 +25,10 @@ from app.core.interfaces.erp_ingest import (
     PendingConfirmationOrderRequest,
     PendingCustomerRequest,
 )
+from app.core.p1_erp_target_mapping import (
+    P1ErpTargetMappingError,
+    resolve_p1_erp_target,
+)
 from app.models import (
     AttachmentDraft,
     AuditLog,
@@ -358,7 +362,20 @@ def create_text_case(
     requested_for, schedule_reason = _normalize_requested_for(requested_for_raw)
     special_request = raw.get("special_request") if "special_request" in raw else raw.get("specialRequest")
     erp_items, product_reasons = _resolve_erp_items(db, store=store, result=result)
-    erp_target_company_id = settings.p1_erp_target_company_id
+    target_mapping_reason: str | None = None
+    try:
+        erp_target = resolve_p1_erp_target(
+            store_id=store.id,
+            local_company_id=store.company_id,
+            mappings_json=settings.p1_erp_target_mappings_json,
+            fallback_target_company_id=settings.p1_erp_target_company_id,
+            fallback_sales_location_id=settings.p1_erp_sales_location_id,
+        )
+    except P1ErpTargetMappingError as exc:
+        erp_target = None
+        target_mapping_reason = exc.reason_code
+    erp_target_company_id = erp_target.target_company_id if erp_target else 0
+    erp_sales_location_id = erp_target.sales_location_id if erp_target else 0
     reasons = list(decision_reasons) + _required_field_reasons(
         source_user_id=source_user_id,
         is_internal_relay=is_internal_relay,
@@ -366,16 +383,19 @@ def create_text_case(
         requested_for=requested_for_raw,
         raw=raw,
     ) + product_reasons + ([schedule_reason] if schedule_reason else [])
+    if target_mapping_reason:
+        reasons.append(target_mapping_reason)
     deliverable = (
         decision_status == "approved"
         and not reasons
-        and settings.p1_erp_sales_location_id > 0
+        and erp_sales_location_id > 0
         and erp_target_company_id > 0
     )
-    if decision_status == "approved" and settings.p1_erp_sales_location_id <= 0:
-        reasons.append("erp_sales_location_unmapped")
-    if decision_status == "approved" and erp_target_company_id <= 0:
-        reasons.append("erp_target_company_unmapped")
+    if decision_status == "approved" and not target_mapping_reason:
+        if erp_sales_location_id <= 0:
+            reasons.append("erp_sales_location_unmapped")
+        if erp_target_company_id <= 0:
+            reasons.append("erp_target_company_unmapped")
     # 即使解析完整，仍須先取得客戶文字確認並由人員覆核；不得由 worker 自動交付 ERP。
     state = "needs_human_review"
     payload = _draft_payload(
@@ -411,7 +431,7 @@ def create_text_case(
         customer_request = PendingCustomerRequest(
             company_id=erp_target_company_id,
             store_id=store.id,
-            sales_location_id=settings.p1_erp_sales_location_id,
+            sales_location_id=erp_sales_location_id,
             idempotency_key=f"p1-customer:{store.company_id}:{source_event.webhook_event_id}",
             line_user_id=source_user_id,
             display_name=getattr(result, "customer_name", None),
@@ -422,7 +442,7 @@ def create_text_case(
         order_request = PendingConfirmationOrderRequest(
             company_id=erp_target_company_id,
             store_id=store.id,
-            sales_location_id=settings.p1_erp_sales_location_id,
+            sales_location_id=erp_sales_location_id,
             idempotency_key=f"p1-order:{store.company_id}:{source_event.webhook_event_id}",
             source_event_id=source_event.webhook_event_id,
             buyer_line_user_id=source_user_id,
