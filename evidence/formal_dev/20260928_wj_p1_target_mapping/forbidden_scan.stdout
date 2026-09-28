@@ -1,0 +1,8 @@
+app/core/config.py:26:    frontend_url: str = "https://app.orderai.merchcore.ai"
+app/core/config.py:30:    allowed_origins: str = "https://app.orderai.merchcore.ai"
+app/core/config.py:40:    line_login_callback_url: str = "http://localhost:8000/api/v1/auth/line/callback"
+app/core/config.py:115:    stallpay_api_base: str = "https://api.stallpay.merchcore.ai"
+.env.example:4:FRONTEND_URL=http://localhost:8000
+.env.example:22:LINE_LOGIN_CALLBACK_URL=http://localhost:8000/api/v1/auth/line/callback
+.env.example:28:LLM_API_BASE=https://llm-gateway.example/v1
+.env.example:99:STALLPAY_API_BASE=https://api.stallpay.merchcore.ai

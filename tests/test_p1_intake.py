@@ -71,7 +71,13 @@ def _seed(db):
     return company, store
 
 
-def _configure_p1(monkeypatch, store_id, *, erp_product_map_json="{}"):
+def _configure_p1(
+    monkeypatch,
+    store_id,
+    *,
+    erp_product_map_json="{}",
+    erp_target_mappings_json="{}",
+):
     monkeypatch.setattr(line_worker.settings, "p1_intake_enabled", True)
     monkeypatch.setattr(webhook.settings, "p1_intake_enabled", True)
     monkeypatch.setattr(line_worker.settings, "default_store_id", store_id)
@@ -84,6 +90,11 @@ def _configure_p1(monkeypatch, store_id, *, erp_product_map_json="{}"):
     monkeypatch.setattr(webhook.settings, "p1_erp_target_company_id", 77)
     monkeypatch.setattr(line_worker.settings, "p1_erp_sales_location_id", 91)
     monkeypatch.setattr(webhook.settings, "p1_erp_sales_location_id", 91)
+    monkeypatch.setattr(
+        p1_intake_service.settings,
+        "p1_erp_target_mappings_json",
+        erp_target_mappings_json,
+    )
     monkeypatch.setattr(line_worker.settings, "p1_erp_product_id_map_json", erp_product_map_json)
     monkeypatch.setattr(webhook.settings, "p1_erp_product_id_map_json", erp_product_map_json)
     monkeypatch.setattr(line_worker.settings, "p1_attachment_followup_enabled", False)
@@ -210,6 +221,40 @@ def test_approved_text_creates_encrypted_p1_draft_and_blocked_outbox_not_local_o
     assert order_request.items[0].product_id == 101
     audit_serialized = json.dumps([row.new_value for row in db_session.execute(select(AuditLog)).scalars()], ensure_ascii=False)
     assert "友善雞蛋 2 盒" not in audit_serialized and "0900000000" not in audit_serialized
+
+
+def test_wanjiaxiang_store_mapping_overrides_legacy_single_target(db_session, monkeypatch):
+    company, store = _seed(db_session)
+    product_id = db_session.execute(select(Product.id)).scalar_one()
+    mapping = json.dumps(
+        {
+            "stores": {
+                str(store.id): {
+                    "local_company_id": company.id,
+                    "target_company_id": 201,
+                    "sales_location_id": 101,
+                }
+            }
+        }
+    )
+    _configure_p1(
+        monkeypatch,
+        store.id,
+        erp_product_map_json=json.dumps({str(product_id): 7001}),
+        erp_target_mappings_json=mapping,
+    )
+    payload = _payload(_event(event_id="wj-target-mapping"))
+    _record(db_session, store, payload)
+    _install_worker(monkeypatch, _FakeLLM(_result()), store.id)
+    _run(payload, db_session)
+
+    outbox = db_session.execute(select(ErpDeliveryOutbox)).scalar_one()
+    customer_request, order_request = p1_intake_service.build_erp_requests_from_outbox(outbox)
+    assert customer_request.company_id == 201
+    assert customer_request.sales_location_id == 101
+    assert order_request.company_id == 201
+    assert order_request.sales_location_id == 101
+    assert order_request.items[0].product_id == 7001
 
 
 def test_attachment_creates_draft_without_order_or_outbox(db_session, monkeypatch):

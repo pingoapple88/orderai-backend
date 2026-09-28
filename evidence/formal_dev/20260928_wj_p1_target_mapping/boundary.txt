@@ -1,0 +1,5 @@
+formal_write=0
+network_calls=0
+production=NO-GO
+execution_mode=TEST_ONLY_SYNTHETIC
+full_changed_scope_lint=BASELINE_FINDINGS_PRESENT
