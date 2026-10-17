@@ -1,0 +1,10 @@
+validator_exit=0
+pytest_exit=0
+syntax_exit=0
+diff_exit=0
+secret_platform_scan_exit=0
+source_diff_exit=0
+rollback_bundle_verify=0
+head_sha=ff60c614253ef254aec870ea81cc8c3de3f2a849
+base_sha=1ec667cb76e725d63f2a896077793bbd664b3ecd
+rollback_sha=1ec667cb76e725d63f2a896077793bbd664b3ecd

@@ -1,0 +1,3 @@
+1f5922c474d9cc866b10047e53d02298b9051b9bfe909ba50229f6e09377ff7e  docs/gates/c6-provider-gate-packet-001.md
+8d63b2ff495490ce0b5af079a904cb173788a74c08e09904f888f411da4e8b93  scripts/validate_c6_provider_gate_packet.py
+02ca929b42ab94547e9cf8cedc6b3025a2ab49562071bb87db1f3a9395a3b1eb  tests/test_c6_provider_gate_packet.py

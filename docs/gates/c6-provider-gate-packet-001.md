@@ -12,7 +12,7 @@
 | `repository` | owner/repository | `pingoapple88/orderai-backend` |
 | `branch` | Git branch | `docs/evidence` |
 | `base_sha` | 40 字元 SHA-1 | `1ec667cb76e725d63f2a896077793bbd664b3ecd` |
-| `head_sha` | 40 字元 SHA-1 | `[TODO: 待人工確認]` |
+| `head_sha` | 40 字元 SHA-1 | `ff60c614253ef254aec870ea81cc8c3de3f2a849` |
 | `rollback_sha` | 可回復的既有 revision | `1ec667cb76e725d63f2a896077793bbd664b3ecd` |
 | `mode` | `READ_ONLY` 或 `SYNTHETIC` | `READ_ONLY / SYNTHETIC` |
 | `provider_call_count` | 本次工作實際呼叫數 | `0` |
@@ -397,7 +397,7 @@ mode: READ_ONLY / SYNTHETIC
 repository: pingoapple88/orderai-backend
 branch: docs/evidence
 base_sha: 1ec667cb76e725d63f2a896077793bbd664b3ecd
-head_sha: [TODO: 待人工確認]
+head_sha: ff60c614253ef254aec870ea81cc8c3de3f2a849
 parent_sha: 1ec667cb76e725d63f2a896077793bbd664b3ecd
 rollback_sha: 1ec667cb76e725d63f2a896077793bbd664b3ecd
 changed_paths: [docs/gates/c6-provider-gate-packet-001.md, scripts/validate_c6_provider_gate_packet.py, tests/test_c6_provider_gate_packet.py]

@@ -1,0 +1,3 @@
+$ final deliverable syntax and secret/platform-shadow scan
+OK: Markdown newline/tab/fence and embedded YAML/JSON syntax
+OK: no high-confidence secret-like or platform-shadow marker in deliverable packet

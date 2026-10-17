@@ -1,0 +1,6 @@
+$ python3 scripts/validate_c6_provider_gate_packet.py docs/gates/c6-provider-gate-packet-001.md
+OK: docs/gates/c6-provider-gate-packet-001.md
+
+$ pytest -q tests/test_c6_provider_gate_packet.py
+...                                                                      [100%]
+3 passed in 0.06s

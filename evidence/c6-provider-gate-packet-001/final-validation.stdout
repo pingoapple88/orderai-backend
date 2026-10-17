@@ -1,0 +1,11 @@
+$ python3 scripts/validate_c6_provider_gate_packet.py docs/gates/c6-provider-gate-packet-001.md
+OK: docs/gates/c6-provider-gate-packet-001.md
+
+$ pytest -q tests/test_c6_provider_gate_packet.py
+...                                                                      [100%]
+3 passed in 0.08s
+
+$ embedded Markdown/YAML/JSON syntax and diff check
+OK: Markdown newline/tab/fence and embedded YAML/JSON syntax
+
+validator_exit=0 pytest_exit=0 syntax_exit=0 diff_exit=0

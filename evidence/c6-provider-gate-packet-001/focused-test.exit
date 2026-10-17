@@ -1,0 +1,3 @@
+validator_exit=0
+pytest_exit=0
+overall_exit=0
