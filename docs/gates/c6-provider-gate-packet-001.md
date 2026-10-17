@@ -6,13 +6,19 @@
 
 ## 1. Packet identity and operating boundary
 
+### 1.0 Revision provenance
+
+本 packet 的 source implementation／evidence-precommit revision 是 `ff60c614253ef254aec870ea81cc8c3de3f2a849`；包含完整 evidence bundle 的 delivery branch head 是 `75a0727ad4fb90978eb7416b24f82326604911bf`。本次後續 branch commit 只補充 provenance 說明，不改變 implementation、provider boundary 或測試語意；父層收斂報告另記錄最新 branch tip。兩者不可混稱為同一個 SHA。
+
 | 欄位 | 必填格式 | 本 work item 狀態 |
 |---|---|---|
 | `work_item_id` | 固定識別字串 | `C6-PROVIDER-GATE-PACKET-001` |
 | `repository` | owner/repository | `pingoapple88/orderai-backend` |
 | `branch` | Git branch | `docs/evidence` |
 | `base_sha` | 40 字元 SHA-1 | `1ec667cb76e725d63f2a896077793bbd664b3ecd` |
-| `head_sha` | 40 字元 SHA-1 | `ff60c614253ef254aec870ea81cc8c3de3f2a849` |
+| `head_sha` | 40 字元 SHA-1（本 evidence bundle 的 delivery head） | `75a0727ad4fb90978eb7416b24f82326604911bf` |
+| `implementation_head_sha` | 40 字元 SHA-1 | `ff60c614253ef254aec870ea81cc8c3de3f2a849` |
+| `delivery_branch_head_sha` | 40 字元 SHA-1（evidence bundle delivery head） | `75a0727ad4fb90978eb7416b24f82326604911bf` |
 | `rollback_sha` | 可回復的既有 revision | `1ec667cb76e725d63f2a896077793bbd664b3ecd` |
 | `mode` | `READ_ONLY` 或 `SYNTHETIC` | `READ_ONLY / SYNTHETIC` |
 | `provider_call_count` | 本次工作實際呼叫數 | `0` |
@@ -397,7 +403,9 @@ mode: READ_ONLY / SYNTHETIC
 repository: pingoapple88/orderai-backend
 branch: docs/evidence
 base_sha: 1ec667cb76e725d63f2a896077793bbd664b3ecd
-head_sha: ff60c614253ef254aec870ea81cc8c3de3f2a849
+head_sha: 75a0727ad4fb90978eb7416b24f82326604911bf
+implementation_head_sha: ff60c614253ef254aec870ea81cc8c3de3f2a849
+delivery_branch_head_sha: 75a0727ad4fb90978eb7416b24f82326604911bf
 parent_sha: 1ec667cb76e725d63f2a896077793bbd664b3ecd
 rollback_sha: 1ec667cb76e725d63f2a896077793bbd664b3ecd
 changed_paths: [docs/gates/c6-provider-gate-packet-001.md, scripts/validate_c6_provider_gate_packet.py, tests/test_c6_provider_gate_packet.py]

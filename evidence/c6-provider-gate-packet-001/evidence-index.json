@@ -3,7 +3,9 @@
   "repository": "pingoapple88/orderai-backend",
   "branch": "docs/evidence",
   "base_sha": "1ec667cb76e725d63f2a896077793bbd664b3ecd",
-  "head_sha": "ff60c614253ef254aec870ea81cc8c3de3f2a849",
+  "head_sha": "75a0727ad4fb90978eb7416b24f82326604911bf",
+  "implementation_head_sha": "ff60c614253ef254aec870ea81cc8c3de3f2a849",
+  "delivery_branch_head_sha": "75a0727ad4fb90978eb7416b24f82326604911bf",
   "rollback_sha": "1ec667cb76e725d63f2a896077793bbd664b3ecd",
   "mode": "READ_ONLY / SYNTHETIC",
   "provider_call_count": 0,
@@ -22,6 +24,7 @@
   "secret_platform_scan_exit": 0,
   "source_diff_exit": 0,
   "rollback_bundle": "c6-provider-gate-packet-001-rollback.bundle",
+  "provenance_note": "ff60c614253ef254aec870ea81cc8c3de3f2a849 is the implementation/evidence-precommit revision; 75a0727ad4fb90978eb7416b24f82326604911bf is the branch head that delivered the evidence bundle. They are intentionally recorded separately.",
   "blocker": "Formal provider/owner/credential/Production evidence remains TODO; no external action is authorized.",
   "next_exit": "Owner fills each domain packet, reviewer verifies redacted evidence, and coordinator reviews only this new source revision; Production approval remains a separate manual gate."
 }
