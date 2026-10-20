@@ -32,6 +32,14 @@ class ExtractionResult:
     raw: Dict = field(default_factory=dict)
 
 
+class LLMProviderExecutionError(RuntimeError):
+    """Provider 邊界的可稽核錯誤；業務層只依 reason_code 決定 fail-closed。"""
+
+    def __init__(self, reason_code: str, message: str) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
 class ILLMProvider(ABC):
     @abstractmethod
     async def extract_order(

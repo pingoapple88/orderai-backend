@@ -6,6 +6,7 @@ picture_url 寫入成功。依賴 DB 在 head(含 0002 補欄位)。
 """
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
@@ -37,11 +38,23 @@ def test_line_callback_creates_user_and_store():
     fake_profile = SimpleNamespace(
         external_id=_LINE_ID, display_name="測試店", avatar_url="http://x/a.png"
     )
-    provider = SimpleNamespace(exchange_code=AsyncMock(return_value=fake_profile))
+    provider = SimpleNamespace(
+        get_authorize_url=lambda state: f"https://login.example.test/authorize?state={state}",
+        exchange_code=AsyncMock(return_value=fake_profile),
+    )
     try:
         with patch("app.api.v1.auth.get_auth_provider", return_value=provider):
-            client = TestClient(app)
-            r = client.get("/api/v1/auth/line/callback?code=fakecode", follow_redirects=False)
+            # callback 的 CSRF state 必須由授權起點在同一 HTTPS session 設置。
+            # 此測試不以跳過或偽造 callback 驗證的方式換取綠燈。
+            client = TestClient(app, base_url="https://testserver")
+            login = client.get("/api/v1/auth/line/login", follow_redirects=False)
+            assert login.status_code == 302
+            state = parse_qs(urlsplit(login.headers["location"]).query)["state"][0]
+            r = client.get(
+                "/api/v1/auth/line/callback",
+                params={"code": "fakecode", "state": state},
+                follow_redirects=False,
+            )
 
         # 建單成功 → 302/307 導回前端（若 stores/users 缺欄位會 500）
         assert r.status_code in (302, 307), f"expected redirect, got {r.status_code}: {r.text}"
