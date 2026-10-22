@@ -34,6 +34,19 @@ class P1ErpTargetMappingError(ValueError):
         self.reason_code = reason_code
 
 
+class _DuplicateMappingKey(ValueError):
+    """Internal parser signal for duplicate JSON object keys."""
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateMappingKey(key)
+        result[key] = value
+    return result
+
+
 def _positive_int(value: Any, *, field: str) -> int:
     if isinstance(value, bool):
         raise P1ErpTargetMappingError("erp_target_mapping_invalid")
@@ -51,7 +64,9 @@ def parse_p1_erp_target_mappings(raw_json: str) -> dict[int, P1ErpTarget]:
     if not raw_json.strip() or raw_json.strip() == "{}":
         return {}
     try:
-        document = json.loads(raw_json)
+        document = json.loads(raw_json, object_pairs_hook=_reject_duplicate_keys)
+    except _DuplicateMappingKey as exc:
+        raise P1ErpTargetMappingError("erp_target_mapping_duplicate_key") from exc
     except json.JSONDecodeError as exc:
         raise P1ErpTargetMappingError("erp_target_mapping_invalid") from exc
     if not isinstance(document, dict) or not isinstance(document.get("stores"), dict):
@@ -74,6 +89,11 @@ def parse_p1_erp_target_mappings(raw_json: str) -> dict[int, P1ErpTarget]:
             if raw_local_company is None
             else _positive_int(raw_local_company, field="local_company_id")
         )
+        if (
+            any(value is not None for value in (raw_unit_id, raw_tenant_id, raw_legal_entity_id))
+            and local_company_id is None
+        ):
+            raise P1ErpTargetMappingError("erp_target_mapping_company_missing")
         result[store_id] = P1ErpTarget(
             local_store_id=store_id,
             local_company_id=local_company_id,

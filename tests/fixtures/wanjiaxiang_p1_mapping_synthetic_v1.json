@@ -1,0 +1,31 @@
+{
+  "stores": {
+    "501": {
+      "unit_id": "synthetic-wj-unit-hq-001",
+      "tenant_id": "synthetic-wj-tenant-global-001",
+      "legal_entity_id": "synthetic-wj-legal-entity-hq-001",
+      "local_company_id": 1501,
+      "target_company_id": 2501,
+      "sales_location_id": 9501,
+      "mapping_status": "SYNTHETIC_ONLY"
+    },
+    "502": {
+      "unit_id": "synthetic-wj-unit-dealer-001",
+      "tenant_id": "synthetic-wj-tenant-global-001",
+      "legal_entity_id": "synthetic-wj-legal-entity-dealer-001",
+      "local_company_id": 1502,
+      "target_company_id": 2502,
+      "sales_location_id": 9502,
+      "mapping_status": "SYNTHETIC_ONLY"
+    },
+    "503": {
+      "unit_id": "synthetic-wj-unit-store-001",
+      "tenant_id": "synthetic-wj-tenant-global-001",
+      "legal_entity_id": "synthetic-wj-legal-entity-store-001",
+      "local_company_id": 1503,
+      "target_company_id": 2503,
+      "sales_location_id": 9503,
+      "mapping_status": "SYNTHETIC_ONLY"
+    }
+  }
+}

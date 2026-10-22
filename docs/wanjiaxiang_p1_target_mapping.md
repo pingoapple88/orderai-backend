@@ -51,3 +51,22 @@ available for backward-compatible controlled deployments.
   blocked ERP delivery remain unchanged.
 - Formal company／legal-entity／ERP mapping and provider credentials remain
   owner-gated.
+
+## Synthetic hardening matrix
+
+`tests/fixtures/wanjiaxiang_p1_mapping_synthetic_v1.json` contains three
+synthetic rows representing headquarters, dealer and store scopes. Each row
+binds a local company, store, unit, tenant, legal entity, target company and
+sales location. The test deliberately uses different numeric values for
+`store_id` and `sales_location_id`; the latter is never inferred from the
+former.
+
+The parser stops before resolution when it finds:
+
+- duplicate JSON object keys: `erp_target_mapping_duplicate_key`;
+- identity fields without an explicit `local_company_id`:
+  `erp_target_mapping_company_missing`;
+- a caller company that differs from the mapped local company:
+  `erp_target_mapping_company_mismatch`;
+- missing store, unit, tenant or legal-entity scope, using the existing
+  fail-closed reason codes.
