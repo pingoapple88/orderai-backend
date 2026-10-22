@@ -10,7 +10,9 @@
 Python baseline runner：3.12.x
 Ruff：0.16.9
 mypy：2.3.1
-pytest：以專案 dev dependency 的最低相容版本執行，實際版本寫入 raw evidence
+pytest：9.1.1
+pytest-asyncio：1.4.0
+httpx（test client）：0.27.2
 target runtime：Python >=3.9
 ```
 
@@ -29,7 +31,7 @@ target runtime：Python >=3.9
 - mypy 顯示 error code，且啟用 unused config warning
 - pytest `testpaths = ["tests"]` 與 `-ra`
 
-Quality tool 版本也列在 `[project.optional-dependencies].dev`；更新版本必須建立新的 baseline，不得直接覆蓋舊 evidence。
+Quality tool 與 test client 版本也列在 `[project.optional-dependencies].dev`；更新版本必須建立新的 baseline，不得直接覆蓋舊 evidence。
 
 ## 標準命令
 
