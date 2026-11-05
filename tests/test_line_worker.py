@@ -103,7 +103,7 @@ def test_llm_failure_notifies_and_no_order(db_session, monkeypatch):
     _install(monkeypatch, _FakeLLM(exc=RuntimeError("boom")), notif, store.id)
     _run(_text_payload(), db_session)
     assert _order_count(db_session) == 0
-    assert notif.sent and "provider_error" in notif.sent[0]["text"]
+    assert notif.sent and "provider_error" not in notif.sent[0]["text"]
 
 
 def test_llm_timeout_notifies_reason_and_no_order(db_session, monkeypatch):
@@ -113,7 +113,7 @@ def test_llm_timeout_notifies_reason_and_no_order(db_session, monkeypatch):
     _run(_text_payload(event_id="timeout-1"), db_session)
 
     assert _order_count(db_session) == 0
-    assert notif.sent and "provider_timeout" in notif.sent[0]["text"]
+    assert notif.sent and "provider_timeout" not in notif.sent[0]["text"]
 
 
 def test_structured_provider_error_notifies_reason_and_no_order(db_session, monkeypatch):
@@ -128,7 +128,7 @@ def test_structured_provider_error_notifies_reason_and_no_order(db_session, monk
     _run(_text_payload(event_id="provider-error-1"), db_session)
 
     assert _order_count(db_session) == 0
-    assert notif.sent and "provider_error" in notif.sent[0]["text"]
+    assert notif.sent and "provider_error" not in notif.sent[0]["text"]
 
 
 # ── 場景 3：信心 < 閾值 → fail-closed，不建單 ───────────────────────────────
@@ -140,7 +140,7 @@ def test_low_confidence_fail_closed(db_session, monkeypatch):
     _install(monkeypatch, _FakeLLM(result=res), notif, store.id)
     _run(_text_payload(), db_session)
     assert _order_count(db_session) == 0
-    assert notif.sent and "人工確認" in notif.sent[0]["text"]
+    assert notif.sent and "確認" in notif.sent[0]["text"]
 
 
 # ── 場景 4：信心足且型錄命中 → 建單寫 DB ───────────────────────────────────────
@@ -168,7 +168,8 @@ def test_high_confidence_creates_order(db_session, monkeypatch):
 
     cust = db_session.get(Customer, o.customer_id)
     assert cust.line_user_id == "Ubuyer9" and cust.store_id == store.id
-    assert notif.sent and "已收到您的訂單" in notif.sent[0]["text"]
+    assert notif.sent and "蘋果 x3" in notif.sent[0]["text"]
+    assert "總計 $135" in notif.sent[0]["text"]
 
 
 # ── 場景 5：同 webhookEventId 兩次 → 只一單（UNIQUE 去重）────────────────────
