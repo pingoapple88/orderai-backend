@@ -48,3 +48,10 @@ class FailoverLLMProvider(ILLMProvider):
                     reason_code,
                     "All configured LLM providers failed; order requires manual review",
                 ) from fallback_error
+
+    async def compose_reply(self, outcome: str, brand_voice: str = "") -> tuple:
+        """對話層①暖話：主 Provider 失敗才切備援；兩者皆失敗則上拋（呼叫端回退罐頭句）。"""
+        try:
+            return await self.primary.compose_reply(outcome=outcome, brand_voice=brand_voice)
+        except Exception:  # noqa: BLE001 - 暖語非關鍵，交由 reply_composer fail-safe
+            return await self.fallback.compose_reply(outcome=outcome, brand_voice=brand_voice)
