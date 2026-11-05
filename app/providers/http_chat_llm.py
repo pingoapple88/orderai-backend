@@ -13,6 +13,13 @@ from app.services.pii_redaction import redact_pii
 _ORDER_PROMPTS = {
     "ecom": """你是繁體中文訂單資料抽取器。僅抽取使用者原文中明確出現的客戶、商品與數量。
 禁止補猜商品、數量、價格、單位、姓名或電話。使用者沒有明講的欄位必須回傳 null 或空陣列。
+口語與語音轉寫（例：「我要兩盒蛋」「蛋給我來個兩盒」「那個蘋果三顆好了」）：
+- 中文數字轉整數（一=1、兩/二=2、三=3…、十=10、十二=12、半打=6、一打=12），quantity 一律回整數。
+- 量詞放 unit（盒、顆、份、杯、打），不可併進 product_name；「我要」「給我」「幫我訂」「好了」等語助詞不是商品。
+- 「那個」「一樣的」「老樣子」等無法從原文確定的指涉 → 不抽該品項，並降低 confidence_score。
+- 不確定的數量回 null，不要猜；evidence 保留原文片段（含中文數字原樣）。
+- 若輸入是圖片：只抽取圖片中清楚可見的文字或手寫內容，看不清楚就回空陣列與低 confidence_score。
+- 任何價格、金額一律不要回傳（價格由店家型錄決定）。
 每個商品必須保留 evidence（原文對應片段）並提供 0 到 1 的 field_confidence。
 只回傳 JSON：
 {"customer_name": string|null, "customer_phone": string|null,
@@ -22,6 +29,13 @@ _ORDER_PROMPTS = {
 """,
     "food": """你是繁體中文餐飲訂單資料抽取器。僅抽取使用者原文中明確出現的客戶、餐點與數量。
 禁止補猜餐點、數量、價格、加料或取餐資訊。沒有明講的欄位必須回傳 null 或空陣列。
+口語與語音轉寫（例：「我要兩盒蛋」「蛋給我來個兩盒」「那個蘋果三顆好了」）：
+- 中文數字轉整數（一=1、兩/二=2、三=3…、十=10、十二=12、半打=6、一打=12），quantity 一律回整數。
+- 量詞放 unit（盒、顆、份、杯、打），不可併進 product_name；「我要」「給我」「幫我訂」「好了」等語助詞不是商品。
+- 「那個」「一樣的」「老樣子」等無法從原文確定的指涉 → 不抽該品項，並降低 confidence_score。
+- 不確定的數量回 null，不要猜；evidence 保留原文片段（含中文數字原樣）。
+- 若輸入是圖片：只抽取圖片中清楚可見的文字或手寫內容，看不清楚就回空陣列與低 confidence_score。
+- 任何價格、金額一律不要回傳（價格由店家型錄決定）。
 每個商品必須保留 evidence（原文對應片段）並提供 0 到 1 的 field_confidence。
 只回傳 JSON：
 {"customer_name": string|null, "customer_phone": string|null,
@@ -225,6 +239,14 @@ class OllamaLLMProvider(ILLMProvider):
         return _parse_result(payload, industry_type, self.provider_name)
 
 
+def _anthropic_image_source(image_url: str) -> dict:
+    """WO-L3-003：LINE 圖片以 data URL 傳入（非公開 URL）；Messages 協定需拆成 base64 source。"""
+    if image_url.startswith("data:") and ";base64," in image_url:
+        header, data = image_url[5:].split(";base64,", 1)
+        return {"type": "base64", "media_type": header or "image/jpeg", "data": data}
+    return {"type": "url", "url": image_url}
+
+
 class AnthropicMessagesLLMProvider(ILLMProvider):
     """Messages HTTP Adapter；不使用供應商 SDK。"""
 
@@ -260,7 +282,7 @@ class AnthropicMessagesLLMProvider(ILLMProvider):
             raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
         content: List[dict] = [{"type": "text", "text": redact_pii(text)}]
         if image_url:
-            content.append({"type": "image", "source": {"type": "url", "url": image_url}})
+            content.append({"type": "image", "source": _anthropic_image_source(image_url)})
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await _post_json(
                 client,

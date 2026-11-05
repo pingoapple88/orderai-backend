@@ -11,6 +11,10 @@ from app.providers.failover_llm import FailoverLLMProvider
 from app.providers.line_auth import LineAuthProvider
 from app.providers.http_chat_llm import AnthropicMessagesLLMProvider, OllamaLLMProvider, OpenAICompatibleLLMProvider
 from app.providers.stallpay import StallPayProvider
+from app.core.interfaces.message_content_provider import IMessageContentProvider
+from app.core.interfaces.speech_to_text_provider import ISpeechToTextProvider
+from app.providers.line_content import LineMessageContentProvider
+from app.providers.http_stt import DisabledSpeechToTextProvider, OpenAICompatibleSpeechToTextProvider
 
 settings = get_settings()
 
@@ -61,6 +65,24 @@ def get_llm_provider() -> ILLMProvider:
 def get_notification_provider() -> INotificationProvider:
     """回覆/推播訊息提供者（目前 LINE）。"""
     return LineAuthProvider()
+
+
+def get_message_content_provider() -> IMessageContentProvider:
+    """WO-L3-003：訊息媒體（圖片／語音）取得（目前 LINE）。"""
+    return LineMessageContentProvider()
+
+
+def get_speech_to_text_provider() -> ISpeechToTextProvider:
+    """WO-L3-003：語音轉文字（可替換）。未設定或不支援 → Disabled（語音一律轉人工）。"""
+    provider = settings.stt_provider.strip().lower()
+    if provider in {"openai_compatible", "openai", "http"}:
+        return OpenAICompatibleSpeechToTextProvider(
+            api_key=settings.stt_api_key,
+            api_base=settings.stt_api_base,
+            model=settings.stt_model,
+            timeout_seconds=settings.stt_timeout_seconds,
+        )
+    return DisabledSpeechToTextProvider()
 
 
 def get_payment_provider() -> IPaymentProvider:

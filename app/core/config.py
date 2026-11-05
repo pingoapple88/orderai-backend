@@ -71,6 +71,22 @@ class Settings(BaseSettings):
     reply_llm_timeout_seconds: float = 3.0
     reply_llm_max_chars: int = 60
 
+    # WO-L3-003 對話層③：照片／語音收單。媒體一律經 IMessageContentProvider 取得。
+    line_image_intake_enabled: bool = True
+    line_audio_intake_enabled: bool = True
+    line_content_max_bytes: int = 10_000_000
+    line_content_timeout_seconds: float = 10.0
+    # 語音轉文字（ISpeechToTextProvider，可替換）。STT_PROVIDER 空＝未啟用 → 語音一律轉人工。
+    # 支援：openai_compatible（POST {STT_API_BASE}/audio/transcriptions）。
+    stt_provider: str = ""
+    stt_api_key: str = ""
+    stt_api_base: str = ""
+    stt_model: str = ""
+    stt_language: str = "zh"
+    stt_timeout_seconds: float = 30.0
+    # 轉寫信心低於此值，或 Provider 無法提供信心 → needs_review（fail-closed，不硬猜）。
+    stt_min_confidence: float = 0.6
+
     # WO-002：v0 一人一店（快照 §九）。LINE 抄單建單的歸屬 store。
     # 0 = 未設定 → worker fail-closed（不建孤兒單）。多店路由見 WO-007。
     default_store_id: int = 0

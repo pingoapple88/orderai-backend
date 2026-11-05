@@ -5,12 +5,15 @@
   找不到 store 或 owner → fail-closed（不建孤兒單、不建到錯店）。多店路由見 WO-007。
 - 去重：orders.line_event_id UNIQUE。直接 INSERT，撞則 IntegrityError 攔（⛔ 不 check-then-write）。
 - 價格只取店家型錄；未命中商品不猜價，轉人工覆核。
+- WO-L3-003：圖片（data URL → extract_order(image_url)）、語音（STT → 文字流程）同一建單流程；
+  取媒體／轉寫失敗或信心不足 → needs_review，不建單。
 - 信心、型錄、數量與原文證據任一未通過 → fail-closed（不建單，只通知）。
 - LLM/LINE HTTP、DB 需真環境；沙箱以注入 db + mock provider 驗邏輯層。
 """
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 from typing import Any, Dict, Optional, Tuple
 
@@ -86,7 +89,73 @@ def _get_or_create_customer(
     return cust
 
 
-async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> None:
+IMAGE_EXTRACT_HINT = "（買家傳來一張訂購圖片：只抽取圖片中清楚可見的商品與數量，看不清楚不要猜。）"
+
+
+def _audit_fail_closed(db: Session, *, principal: dict, reason_code: str, source_text: str) -> None:
+    order_risk_service.audit_ai_decision(
+        db,
+        principal=principal,
+        extraction=None,
+        decision=order_risk_service.RiskDecision(
+            status="needs_review",
+            reasons=[reason_code],
+            threshold=settings.ai_confidence_threshold,
+        ),
+        source_text=source_text,
+    )
+
+
+async def _resolve_input(
+    event: Dict[str, Any], *, content, stt,
+) -> Tuple[Optional[str], Optional[str], str, Optional[Tuple[str, str]]]:
+    """WO-L3-003：把 text／image／audio 統一成 (text, image_url, source_text, fail)。
+
+    fail = (reason_code, outcome)；非 None 時不得呼叫 LLM、不得建單。
+    圖片：IMessageContentProvider 取圖 → data URL 交 extract_order(image_url=…)。
+    語音：IMessageContentProvider 取音檔 → ISpeechToTextProvider 轉文字 → 走文字流程；
+          轉寫信心不足或無法提供信心 → needs_review（不硬猜）。
+    """
+    msg = event.get("message") or {}
+    msg_type = msg.get("type")
+    message_id = str(msg.get("id") or "")
+    if msg_type == "text":
+        return msg.get("text"), None, msg.get("text") or "", None
+
+    source_text = "line_{}:{}".format(msg_type, message_id)
+    try:
+        media = await content.get_message_content(message_id)
+    except Exception as exc:  # noqa: BLE001 — 取媒體失敗一律 fail-closed
+        reason = getattr(exc, "reason_code", None) or "media_fetch_failed"
+        logger.warning("media fetch failed type=%s reason=%s", msg_type, reason)
+        return None, None, source_text, (reason, reply_composer.OUTCOME_PROVIDER_ERROR)
+
+    if msg_type == "image":
+        if not media.content_type.startswith("image/"):
+            return None, None, source_text, ("media_type_mismatch", reply_composer.OUTCOME_NEEDS_REVIEW)
+        data_url = "data:{};base64,{}".format(media.content_type, base64.b64encode(media.data).decode("ascii"))
+        return IMAGE_EXTRACT_HINT, data_url, source_text, None
+
+    # audio
+    try:
+        tr = await stt.transcribe(
+            media.data, content_type=media.content_type or "audio/m4a", language=settings.stt_language,
+        )
+    except Exception as exc:  # noqa: BLE001 — STT 失敗／未設定 → 轉人工
+        reason = getattr(exc, "reason_code", None) or "stt_error"
+        logger.warning("stt failed reason=%s", reason)
+        return None, None, source_text, (reason, reply_composer.OUTCOME_NEEDS_REVIEW)
+    transcript = (tr.text or "").strip()
+    if not transcript:
+        return None, None, source_text, ("stt_empty_transcript", reply_composer.OUTCOME_NEEDS_REVIEW)
+    if tr.confidence is None:
+        return None, None, transcript, ("stt_confidence_unavailable", reply_composer.OUTCOME_NEEDS_REVIEW)
+    if tr.confidence < settings.stt_min_confidence:
+        return None, None, transcript, ("stt_confidence_below_threshold", reply_composer.OUTCOME_NEEDS_REVIEW)
+    return transcript, None, transcript, None
+
+
+async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif, *, content=None, stt=None) -> None:
     reply_token: Optional[str] = event.get("replyToken")
     source = event.get("source", {})
     user_id: Optional[str] = source.get("userId")
@@ -96,10 +165,15 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         await _process_p1_event(db, event, llm, notif)
         return
 
-    # pre-filter：只處理文字訊息
-    text = _get_text_from_event(event)
-    if not text:
-        logger.debug("skip non-text event type=%s", event.get("type"))
+    # pre-filter：文字、（啟用時）圖片與語音；其餘略過
+    msg_type = (event.get("message") or {}).get("type") if event.get("type") == "message" else None
+    allowed = {"text"}
+    if settings.line_image_intake_enabled:
+        allowed.add("image")
+    if settings.line_audio_intake_enabled:
+        allowed.add("audio")
+    if msg_type not in allowed or (msg_type == "text" and not _get_text_from_event(event)):
+        logger.debug("skip event type=%s message=%s", event.get("type"), msg_type)
         return
 
     # v0 一人一店：解析歸屬 store + owner（fail-closed）
@@ -111,9 +185,23 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
 
     principal = {"user_id": owner.id, "store_id": store.id}
 
-    # LLM 解析
+    if msg_type != "text":
+        from app.providers import get_message_content_provider, get_speech_to_text_provider
+        content = content or get_message_content_provider()
+        if msg_type == "audio":
+            stt = stt or get_speech_to_text_provider()
+    text, image_url, source_text, fail = await _resolve_input(event, content=content, stt=stt)
+    if fail is not None:
+        reason_code, outcome = fail
+        _audit_fail_closed(db, principal=principal, reason_code=reason_code, source_text=source_text)
+        await _reply(
+            notif, llm, user_id=user_id, reply_token=reply_token, outcome=outcome, reason_code=reason_code,
+        )
+        return
+
+    # LLM 解析（價格一律不採用模型輸出，下方以型錄帶價）
     try:
-        result = await llm.extract_order(text=text, industry_type=industry_type)
+        result = await llm.extract_order(text=text, image_url=image_url, industry_type=industry_type)
     except Exception as exc:  # noqa: BLE001 — 對外服務失敗一律降級通知
         logger.error("LLM extract_order failed: %s", exc)
         reason_code = getattr(exc, "reason_code", None)
@@ -121,17 +209,7 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
             reason_code = "provider_timeout" if isinstance(
                 exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)
             ) else "provider_error"
-        order_risk_service.audit_ai_decision(
-            db,
-            principal=principal,
-            extraction=None,
-            decision=order_risk_service.RiskDecision(
-                status="needs_review",
-                reasons=[reason_code],
-                threshold=settings.ai_confidence_threshold,
-            ),
-            source_text=text,
-        )
+        _audit_fail_closed(db, principal=principal, reason_code=reason_code, source_text=source_text)
         # reason_code 已寫 audit；不對客人顯示技術碼。
         await _reply(
             notif, llm, user_id=user_id, reply_token=reply_token,
@@ -157,7 +235,7 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         principal=principal,
         extraction=result,
         decision=decision,
-        source_text=text,
+        source_text=source_text,
     )
     if decision.status != "approved":
         logger.warning(
