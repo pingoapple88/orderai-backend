@@ -22,7 +22,7 @@ import httpx
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import Customer, Store, User
-from app.services import order_risk_service, order_service, p1_intake_service, product_service
+from app.services import order_risk_service, order_service, p1_intake_service, product_service, reply_composer
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -34,6 +34,17 @@ def _get_text_from_event(event: Dict[str, Any]) -> Optional[str]:
     if msg.get("type") == "text":
         return msg.get("text")
     return None
+
+
+async def _reply(notif, llm, *, user_id: Optional[str], reply_token: Optional[str], outcome: str, **facts) -> None:
+    """WO-L3-001：回覆走 reply_composer；組字與送出失敗皆不可阻斷建單（只 log）。"""
+    if not (reply_token and user_id):
+        return
+    text = await reply_composer.compose(outcome, llm=llm, **facts)
+    try:
+        await notif.send_message(to=user_id, text=text, reply_token=reply_token)
+    except Exception:  # noqa: BLE001 — 訂單／audit 已先寫入，回覆失敗不回滾
+        logger.warning("LINE reply failed outcome=%s", outcome)
 
 
 def _resolve_store_owner(db: Session, store_id: int) -> Tuple[Optional[Store], Optional[User]]:
@@ -121,10 +132,11 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
             ),
             source_text=text,
         )
-        if reply_token and user_id:
-            await notif.send_message(
-                to=user_id, text="此筆內容需人工確認（原因：{}）。".format(reason_code), reply_token=reply_token
-            )
+        # reason_code 已寫 audit；不對客人顯示技術碼。
+        await _reply(
+            notif, llm, user_id=user_id, reply_token=reply_token,
+            outcome=reply_composer.OUTCOME_PROVIDER_ERROR, reason_code=reason_code,
+        )
         return
 
     logger.info(
@@ -153,12 +165,11 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
             decision.reasons,
             result.confidence_score,
         )
-        if reply_token and user_id:
-            await notif.send_message(
-                to=user_id,
-                text="這筆內容需要人工確認，請補充商品名稱與數量，或請店家協助確認。",
-                reply_token=reply_token,
-            )
+        await _reply(
+            notif, llm, user_id=user_id, reply_token=reply_token,
+            outcome=reply_composer.OUTCOME_NEEDS_REVIEW,
+            reason_code=",".join(decision.reasons) or None,
+        )
         return
 
     # 只有完成所有防禦檢查後才建立客戶資料與訂單。
@@ -192,19 +203,25 @@ async def _process_one_event(db: Session, event: Dict[str, Any], llm, notif) -> 
         },
     }
     try:
-        order_service.create_order(db, principal, data)
+        order = order_service.create_order(db, principal, data)
     except IntegrityError:
         db.rollback()
         logger.info("duplicate line_event_id=%s，skip（已建過單）", line_event_id)
         return
 
-    # 回覆買家
-    if reply_token and user_id:
-        item_lines = "\n".join(
-            "- {} x{}".format(i.product_name, i.quantity) for i in result.items
-        )
-        reply_text = "已收到您的訂單：\n{}\n\n請稍候確認。".format(item_lines)
-        await notif.send_message(to=user_id, text=reply_text, reply_token=reply_token)
+    # 回覆買家：事實區塊只用型錄帶價結果與 DB 訂單總計（整數分）。
+    await _reply(
+        notif, llm, user_id=user_id, reply_token=reply_token,
+        outcome=reply_composer.OUTCOME_ORDER_CREATED,
+        items=[
+            reply_composer.ReplyItem(
+                name=p["product_name"], qty=int(p["quantity"]),
+                unit_price_cents=int(p["unit_price_cents"]),
+            )
+            for p in priced
+        ],
+        total_cents=int(order.total_cents),
+    )
 
 
 async def _safe_attachment_followup(notif, *, reply_token: Optional[str], user_id: Optional[str]) -> None:

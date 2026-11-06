@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     ai_max_items_per_order: int = 30
     ai_max_quantity_per_item: int = 99
 
+    # WO-L3-001 對話層①：AI 口吻回覆。LLM 只寫開場／結尾兩句，數字一律由程式產生。
+    # REPLY_BRAND_VOICE 可空（空＝通用親切口吻）；逾時或任何例外 → 回退罐頭句。
+    reply_brand_voice: str = ""
+    reply_llm_enabled: bool = True
+    reply_llm_timeout_seconds: float = 3.0
+    reply_llm_max_chars: int = 60
+
     # WO-002：v0 一人一店（快照 §九）。LINE 抄單建單的歸屬 store。
     # 0 = 未設定 → worker fail-closed（不建孤兒單）。多店路由見 WO-007。
     default_store_id: int = 0
