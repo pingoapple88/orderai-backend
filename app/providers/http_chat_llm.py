@@ -54,6 +54,35 @@ _ORDER_PROMPTS = {
 }
 
 
+# WO-L3-002 對話層①暖話：provider 產生 opening/closing 兩句（嚴禁數字，呼叫端另有正則把關）。
+_COMPOSE_SCENE = {
+    "order_created": "已成功收到一筆訂單",
+    "needs_review": "這筆訂單需要轉店家人工確認",
+    "provider_error": "系統暫時忙碌，已請店家協助",
+}
+
+
+def _compose_system(outcome: str, brand_voice: str) -> str:
+    voice = (brand_voice or "").strip() or "親切、簡短有禮的台灣在地小農小店"
+    scene = _COMPOSE_SCENE.get(outcome, "收到客人的訊息")
+    return (
+        "你是「{}」風格的 LINE 訂單小幫手。情境：{}。".format(voice, scene)
+        + '只輸出 JSON：{"opening": string, "closing": string}。'
+        + "opening 與 closing 各一句溫暖口語的話，各不超過 20 個字。"
+        + "絕對不要出現任何數字、金額、品項名稱或數量（系統會自己帶）。"
+    )
+
+
+def _parse_compose(raw_content: str) -> tuple:
+    """解析暖話 JSON → (opening, closing)；缺任一則上拋，由呼叫端 fail-safe 回退罐頭句。"""
+    data = json.loads(raw_content)
+    opening = str((data or {}).get("opening") or "").strip()
+    closing = str((data or {}).get("closing") or "").strip()
+    if not opening or not closing:
+        raise ValueError("compose_reply returned empty opening/closing")
+    return opening, closing
+
+
 def _clamp_confidence(value: Any) -> float:
     try:
         return max(0.0, min(1.0, float(value)))
@@ -183,6 +212,33 @@ class OpenAICompatibleLLMProvider(ILLMProvider):
             payload = {"items": [], "confidence_score": 0}
         return _parse_result(payload, industry_type, self.provider_name)
 
+    async def compose_reply(self, outcome: str, brand_voice: str = "") -> tuple:
+        """對話層①暖話：回 (opening, closing)。溫度較高取自然語氣；只回文字，不碰數字。"""
+        if not self.api_key and not self.allow_empty_api_key:
+            raise RuntimeError("LLM_API_KEY not configured")
+        if not self.api_base or not self.model:
+            raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = "Bearer {}".format(self.api_key)
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await _post_json(
+                client,
+                "{}/chat/completions".format(self.api_base.rstrip("/")),
+                headers=headers,
+                payload={
+                    "model": self.model,
+                    "temperature": 0.7,
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {"role": "system", "content": _compose_system(outcome, brand_voice)},
+                        {"role": "user", "content": "請產生 opening 與 closing。"},
+                    ],
+                },
+                max_retries=self.max_retries,
+            )
+        return _parse_compose(response.json()["choices"][0]["message"]["content"])
+
 
 class OllamaLLMProvider(ILLMProvider):
     """Ollama `/api/chat` 的 HTTP Adapter；不依賴供應商 Python SDK。"""
@@ -237,6 +293,28 @@ class OllamaLLMProvider(ILLMProvider):
         except (TypeError, json.JSONDecodeError):
             payload = {"items": [], "confidence_score": 0}
         return _parse_result(payload, industry_type, self.provider_name)
+
+    async def compose_reply(self, outcome: str, brand_voice: str = "") -> tuple:
+        """對話層①暖話：回 (opening, closing)。"""
+        if not self.api_base or not self.model:
+            raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await _post_json(
+                client,
+                "{}/api/chat".format(self.api_base.rstrip("/")),
+                payload={
+                    "model": self.model,
+                    "format": "json",
+                    "stream": False,
+                    "options": {"temperature": 0.7},
+                    "messages": [
+                        {"role": "system", "content": _compose_system(outcome, brand_voice)},
+                        {"role": "user", "content": "請產生 opening 與 closing。"},
+                    ],
+                },
+                max_retries=self.max_retries,
+            )
+        return _parse_compose(response.json()["message"]["content"])
 
 
 def _anthropic_image_source(image_url: str) -> dict:
@@ -307,3 +385,29 @@ class AnthropicMessagesLLMProvider(ILLMProvider):
         except (TypeError, json.JSONDecodeError):
             payload = {"items": [], "confidence_score": 0}
         return _parse_result(payload, industry_type, self.provider_name)
+
+    async def compose_reply(self, outcome: str, brand_voice: str = "") -> tuple:
+        """對話層①暖話：回 (opening, closing)。"""
+        if not self.api_key and not self.allow_empty_api_key:
+            raise RuntimeError("LLM_API_KEY not configured")
+        if not self.api_base or not self.model:
+            raise RuntimeError("LLM_API_BASE and LLM_MODEL must be configured")
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await _post_json(
+                client,
+                "{}/messages".format(self.api_base.rstrip("/")),
+                headers={
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                payload={
+                    "model": self.model,
+                    "max_tokens": 256,
+                    "temperature": 0.7,
+                    "system": _compose_system(outcome, brand_voice),
+                    "messages": [{"role": "user", "content": "請產生 opening 與 closing。"}],
+                },
+                max_retries=self.max_retries,
+            )
+        return _parse_compose(response.json()["content"][0]["text"])
